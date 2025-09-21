@@ -1,0 +1,9 @@
+/* static/css/style.css */
+body {
+    font-family: Arial, sans-serif;
+    margin: 2rem;
+    background: #f9f9f9;
+}
+header h1 {
+    color: #4a148c;
+}

@@ -1,0 +1,39 @@
+# Ignore git metadata
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.pyd
+*.egg-info
+dist
+build
+
+# Virtualenvs and env files
+.venv
+venv
+env
+ENV
+.env
+
+# Django static & media
+staticfiles
+media
+
+# IDEs and OS files
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Model artifacts / large checkpoints (if any)
+models
+checkpoints
+*.pt
+*.bin
+
+# Anything else you don't want in the image
+*.log
