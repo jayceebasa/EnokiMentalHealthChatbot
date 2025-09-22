@@ -1,0 +1,23 @@
+FROM python:3.11-slim
+
+ENV HF_HOME=/root/.cache/huggingface
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential python3-dev git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Pre-download all models (emotion, irony, T5)
+RUN python -c "from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM; \
+pipeline('text-classification', model='SamLowe/roberta-base-go_emotions', tokenizer='SamLowe/roberta-base-go_emotions'); \
+pipeline('text-classification', model='cardiffnlp/twitter-roberta-base-irony'); \
+AutoTokenizer.from_pretrained('mrm8488/t5-base-finetuned-sarcasm-twitter'); \
+AutoModelForSeq2SeqLM.from_pretrained('mrm8488/t5-base-finetuned-sarcasm-twitter'); \
+print('All models cached')"
+
+EXPOSE 8001
+CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8001"]
