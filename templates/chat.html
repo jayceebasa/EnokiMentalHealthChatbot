@@ -110,6 +110,60 @@
             fill: currentColor;
         }
 
+        .consent-status {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 0.5rem 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin-right: 0.5rem;
+        }
+
+        .consent-status:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .ephemeral-warning {
+            background: linear-gradient(45deg, #ff9a56, #ff6b6b);
+            color: white;
+            padding: 0.75rem 1rem;
+            text-align: center;
+            margin-bottom: 1rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            font-weight: 500;
+        }
+
+        .ephemeral-warning.show {
+            display: flex;
+        }
+
+        .ephemeral-warning button {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 0.25rem 0.75rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .ephemeral-warning button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
         .main-chat-card {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(20px);
@@ -562,6 +616,118 @@
             visibility: visible;
         }
 
+        .consent-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 2rem;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1), 0 0 0 1px rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            z-index: 1001;
+            max-width: 500px;
+            width: 90%;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .consent-modal.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .consent-modal h3 {
+            color: #2d3748;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            text-align: center;
+        }
+
+        .consent-modal p {
+            color: #4a5568;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        .consent-options {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+
+        .consent-option {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .consent-option:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.1);
+        }
+
+        .consent-option.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea10, #764ba210);
+        }
+
+        .consent-option h4 {
+            color: #2d3748;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .consent-option p {
+            color: #718096;
+            font-size: 0.9rem;
+            margin: 0;
+        }
+
+        .consent-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 1.5rem;
+        }
+
+        .consent-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            min-width: 120px;
+        }
+
+        .consent-btn.primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .consent-btn.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .consent-btn.secondary {
+            background: #f7fafc;
+            color: #2d3748;
+            border: 1px solid #e2e8f0;
+        }
+
+        .consent-btn.secondary:hover {
+            background: #edf2f7;
+        }
+
         .session-info {
             font-size: 0.85rem;
             color: #718096;
@@ -866,6 +1032,9 @@
                 </button>
             </div>
             <div class="header-right">
+                <div class="consent-status" id="consent-status" title="Click to manage data storage preferences">
+                    <span id="consent-indicator">🔍 Checking...</span>
+                </div>
                 <button class="history-btn" id="history-toggle">
                     <svg class="history-icon" viewBox="0 0 24 24">
                         <path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3Z"/>
@@ -877,6 +1046,12 @@
                     </svg>
                 </button>
             </div>
+        </div>
+
+        <!-- Ephemeral Mode Warning -->
+        <div class="ephemeral-warning" id="ephemeral-warning">
+            🔒 <strong>Ephemeral Mode:</strong> Your conversation will be lost when you close the browser.
+            <button id="enable-storage-btn" title="Enable data storage for conversation continuity">Enable Storage</button>
         </div>
 
         <div class="main-chat-card">
@@ -995,8 +1170,39 @@
         </div>
     </div>
 
+    <!-- Consent Modal -->
+    <div class="settings-overlay" id="consent-overlay"></div>
+    <div class="consent-modal" id="consent-modal">
+        <h3>🔒 Data Storage Preferences</h3>
+        <p>Choose how you'd like your conversations to be handled:</p>
+        
+        <div class="consent-options">
+            <div class="consent-option" data-consent="true" id="consent-enable">
+                <h4>🛡️ Enable Secure Storage</h4>
+                <p>Store conversations securely with encryption. Your messages will be saved for continuity across sessions, and you'll get better AI responses with context.</p>
+            </div>
+            
+            <div class="consent-option" data-consent="false" id="consent-disable">
+                <h4>👤 Ephemeral Mode</h4>
+                <p>Keep conversations temporary in your browser only. Messages are lost when you close the browser, but no personal data is stored on our servers.</p>
+            </div>
+        </div>
+        
+        <div class="consent-buttons">
+            <button class="consent-btn primary" id="confirm-consent">Apply Setting</button>
+            <button class="consent-btn secondary" id="cancel-consent">Cancel</button>
+        </div>
+        
+        <p style="font-size: 0.8rem; color: #718096; text-align: center; margin-top: 1rem;">
+            You can change this setting anytime by clicking the privacy indicator in the header.
+        </p>
+    </div>
+
     <script>
         // Wire the chat UI to /api/chat/ and /api/chat/context/ so you can test without reloading
+        let consentStatus = null;
+        let selectedConsent = null;
+        
         document.addEventListener('DOMContentLoaded', function() {
             const messageForm = document.querySelector('.message-form');
             const messageInput = document.querySelector('.message-input');
@@ -1023,6 +1229,16 @@
             
             // New chat button
             const newChatBtn = document.getElementById('new-chat-btn');
+            
+            // Consent elements
+            const consentModal = document.getElementById('consent-modal');
+            const consentOverlay = document.getElementById('consent-overlay');
+            const consentOptions = document.querySelectorAll('.consent-option');
+            const confirmConsentBtn = document.getElementById('confirm-consent');
+            const cancelConsentBtn = document.getElementById('cancel-consent');
+            const consentStatusElement = document.getElementById('consent-status');
+            const ephemeralWarning = document.getElementById('ephemeral-warning');
+            const enableStorageBtn = document.getElementById('enable-storage-btn');
 
             // Validate required elements
             if (!messageInput || !sendBtn || !chatMessages) {
@@ -1083,6 +1299,52 @@
             if (historyToggle) historyToggle.addEventListener('click', openHistory);
             if (closeHistory) closeHistory.addEventListener('click', closeHistoryPanel);
             if (historyOverlay) historyOverlay.addEventListener('click', closeHistoryPanel);
+
+            // Consent modal handlers
+            if (consentStatusElement) {
+                consentStatusElement.addEventListener('click', showConsentModal);
+            }
+            
+            if (cancelConsentBtn) {
+                cancelConsentBtn.addEventListener('click', hideConsentModal);
+            }
+            
+            if (consentOverlay) {
+                consentOverlay.addEventListener('click', hideConsentModal);
+            }
+            
+            // Consent option selection
+            consentOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    selectedConsent = this.dataset.consent === 'true';
+                    updateConsentSelection();
+                });
+            });
+            
+            // Confirm consent button
+            if (confirmConsentBtn) {
+                confirmConsentBtn.addEventListener('click', function() {
+                    if (selectedConsent !== null) {
+                        updateConsent(selectedConsent);
+                    }
+                });
+            }
+            
+            // Enable storage button in ephemeral warning
+            if (enableStorageBtn) {
+                console.log('Enable storage button found, adding event listener');
+                enableStorageBtn.addEventListener('click', function() {
+                    console.log('Enable storage button clicked');
+                    console.log('typeof showConsentModal:', typeof showConsentModal);
+                    try {
+                        showConsentModal();
+                    } catch (error) {
+                        console.error('Error calling showConsentModal:', error);
+                    }
+                });
+            } else {
+                console.log('Enable storage button not found');
+            }
 
             // Auto-resize textarea
             if (messageInput) {
@@ -1192,6 +1454,13 @@
             async function sendMessage(text) {
                 console.log('sendMessage called with text:', text);
                 console.log('sendBtn.disabled:', sendBtn.disabled);
+                
+                // Check consent status before sending
+                if (consentStatus === null) {
+                    showConsentModal();
+                    return;
+                }
+                
                 if (!text || !text.trim() || sendBtn.disabled) {
                     console.log('Returning early from sendMessage');
                     return;
@@ -1220,7 +1489,7 @@
                         method: 'POST',
                         headers: { 
                             'Content-Type': 'application/json',
-                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''
+                            'X-CSRFToken': getCSRFToken() || document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''
                         },
                         credentials: 'same-origin',
                         body: JSON.stringify(payload),
@@ -1251,6 +1520,119 @@
                     sendBtn.disabled = false;
                     messageInput.focus();
                 }
+            }
+
+            // Consent Management Functions
+            async function checkConsentStatus() {
+                try {
+                    const response = await fetch('/api/consent/status/', {
+                        method: 'GET',
+                        headers: { 'X-CSRFToken': getCSRFToken() }
+                    });
+                    const data = await response.json();
+                    consentStatus = data.consent_status;
+                    updateConsentUI();
+                    return consentStatus;
+                } catch (error) {
+                    console.error('Error checking consent status:', error);
+                    return null;
+                }
+            }
+
+            function updateConsentUI() {
+                if (consentStatusElement) {
+                    if (consentStatus === true) {
+                        consentStatusElement.innerHTML = '<span class="consent-indicator secure">🛡️ Secure</span>';
+                        consentStatusElement.title = 'Data stored securely with encryption';
+                    } else if (consentStatus === false) {
+                        consentStatusElement.innerHTML = '<span class="consent-indicator ephemeral">👤 Private</span>';
+                        consentStatusElement.title = 'Ephemeral mode - no data stored';
+                    } else {
+                        consentStatusElement.innerHTML = '<span class="consent-indicator unknown">⚙️ Set Privacy</span>';
+                        consentStatusElement.title = 'Click to set your privacy preference';
+                    }
+                }
+
+                if (ephemeralWarning) {
+                    ephemeralWarning.style.display = (consentStatus === false) ? 'block' : 'none';
+                }
+            }
+
+            function showConsentModal() {
+                console.log('showConsentModal called');
+                console.log('consentModal:', consentModal);
+                console.log('consentOverlay:', consentOverlay);
+                if (consentModal && consentOverlay) {
+                    console.log('Consent modal elements found, opening modal');
+                    // Reset selection
+                    selectedConsent = consentStatus;
+                    updateConsentSelection();
+                    
+                    consentModal.classList.add('show');
+                    consentOverlay.classList.add('active');
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+
+            function hideConsentModal() {
+                if (consentModal && consentOverlay) {
+                    consentModal.classList.remove('show');
+                    consentOverlay.classList.remove('active');
+                    document.body.style.overflow = '';
+                    selectedConsent = null;
+                }
+            }
+
+            function updateConsentSelection() {
+                consentOptions.forEach(option => {
+                    const isSelected = option.dataset.consent === String(selectedConsent);
+                    option.classList.toggle('selected', isSelected);
+                });
+            }
+
+            async function updateConsent(consent) {
+                try {
+                    const response = await fetch('/api/consent/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCSRFToken()
+                        },
+                        body: JSON.stringify({ consent })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        consentStatus = consent;
+                        updateConsentUI();
+                        hideConsentModal();
+                        
+                        // Show feedback message
+                        const feedback = consent ? 
+                            'Privacy setting updated: Secure storage enabled' : 
+                            'Privacy setting updated: Ephemeral mode enabled';
+                        appendMessage({ sender: 'system', text: feedback });
+                        
+                        return true;
+                    } else {
+                        throw new Error('Failed to update consent');
+                    }
+                } catch (error) {
+                    console.error('Error updating consent:', error);
+                    appendMessage({ sender: 'system', text: 'Error updating privacy setting. Please try again.' });
+                    return false;
+                }
+            }
+
+            function getCSRFToken() {
+                const cookies = document.cookie.split(';');
+                for (let cookie of cookies) {
+                    const [name, value] = cookie.trim().split('=');
+                    if (name === 'csrftoken') {
+                        return value;
+                    }
+                }
+                return '';
             }
 
             // Send button click
@@ -1472,6 +1854,7 @@
             // Initial behaviors
             scrollToBottom();
             fetchContext();
+            checkConsentStatus();
             
             // Final check - ensure event listeners are working
             console.log('DOM fully loaded, all event listeners should be attached');
