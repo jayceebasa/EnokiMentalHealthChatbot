@@ -35,6 +35,9 @@ class UserPreference(models.Model):
 	anon_id = models.CharField(max_length=64, null=True, blank=True, db_index=True)
 	tone = models.CharField(max_length=32, default="empathetic")
 	language = models.CharField(max_length=8, default="en")
+	data_consent = models.BooleanField(default=False, help_text="User has consented to data storage")
+	consent_timestamp = models.DateTimeField(null=True, blank=True, help_text="When consent was given")
+	consent_version = models.CharField(max_length=10, default="1.0", help_text="Version of privacy policy consented to")
 	created_at = models.DateTimeField(auto_now_add=True)
 	updated_at = models.DateTimeField(auto_now=True)
 

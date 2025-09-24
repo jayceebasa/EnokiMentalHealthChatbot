@@ -1,15 +1,24 @@
 import os, httpx
 import json
 import uuid
+import logging
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from django.utils import timezone
 from .gemini_client import generate_reply, update_summary, update_memory
 from .models import ChatSession, Message, UserPreference
 from django.db import transaction
 
 AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://127.0.0.1:8001")
+
+# Set up audit logging
+audit_logger = logging.getLogger('audit')
+
+def _check_consent(prefs):
+    """Check if user has given data consent"""
+    return getattr(prefs, 'data_consent', False)
 
 def home(request):
     return render(request, "home.html")
@@ -23,13 +32,21 @@ def api_chat(request):
         user_message = data.get('message', '')
         tone = data.get('tone')
         language = data.get('language')
+        consent_given = data.get('consent')  # Allow consent to be provided in request
         
         if not user_message:
             return JsonResponse({'error': 'Message is required'}, status=400)
 
-        # Get session & prefs (anonymous if not authenticated)
+        # Get preferences (but don't create session yet - depends on consent)
         prefs = _get_or_create_preferences(request)
-        session = _get_or_create_session(request)
+        
+        # Handle consent update if provided
+        if consent_given is not None:
+            prefs.data_consent = bool(consent_given)
+            if consent_given:
+                prefs.consent_timestamp = timezone.now()
+            prefs.save()
+            audit_logger.info(f"Consent updated: user_id={getattr(request.user, 'id', 'anon')}, consent={consent_given}")
 
         # Update preferences if provided
         updated = False
@@ -40,14 +57,69 @@ def api_chat(request):
         if updated:
             prefs.save()
 
-        # Step 1: classify emotions with RoBERTa
+        # Step 1: classify emotions with RoBERTa (no personal data stored here)
         payload = {"text": user_message}
         response = httpx.post(f"{AI_SERVICE_URL}/predict_all", json=payload, timeout=30)
         roberta_data = response.json()
         emotions = roberta_data.get("emotions", [])
 
-        # Step 2: use stored preferences
         preferences = {"tone": prefs.tone, "language": prefs.language}
+
+        # CONSENT CHECK - This determines everything
+        if not _check_consent(prefs):
+            # NO CONSENT: Use session-only history (temporary, browser-only)
+            session_history = request.session.get('temp_chat_history', [])
+            
+            # Add current message to session (temporary storage)
+            session_history.append({"role": "user", "text": user_message})
+            
+            # Keep only last 10 messages in session to prevent bloat
+            if len(session_history) > 10:
+                session_history = session_history[-10:]
+            
+            # Generate reply with session-only context
+            reply = generate_reply(
+                user_message,
+                emotions,
+                preferences,
+                history=session_history,  # From browser session, not database
+                summary=None,  # No stored summary
+                memory=None,   # No stored memory
+            )
+            
+            # Add bot reply to session
+            session_history.append({"role": "bot", "text": reply})
+            request.session['temp_chat_history'] = session_history
+            
+            audit_logger.info(f"Ephemeral chat - no consent: message_length={len(user_message)}")
+            
+            return JsonResponse({
+                'user_message': user_message,
+                'emotions': emotions[:5],
+                'reply': reply,
+                'session_id': None,  # No database session
+                'preferences': preferences,
+                'summary': None,
+                'memory': None,
+                'consent_required': True,
+                'message': 'Conversation stored in browser only - enable data storage for full continuity across sessions.'
+            })
+
+        # CONSENT GIVEN: Full database functionality
+        session = _get_or_create_session(request)
+        
+        # Check if we need to migrate session history to database
+        session_history = request.session.get('temp_chat_history', [])
+        if session_history:
+            # Migrate previous ephemeral conversation to database
+            with transaction.atomic():
+                for msg in session_history:
+                    m = Message(session=session, sender=msg['role'], text=msg['text'])
+                    m.set_plaintext(msg['text'])
+                    m.save()
+                # Clear session history after migration
+                del request.session['temp_chat_history']
+                audit_logger.info(f"Migrated ephemeral history to database: session_id={session.id}, messages={len(session_history)}")
 
         # Build prior history for continuity (last 12 messages)
         prior = list(session.messages.order_by('-created_at')[:12])
@@ -56,7 +128,7 @@ def api_chat(request):
             for m in reversed(prior)
         ]
 
-        # Step 3: generate a reply with Gemini (with prior context + summary)
+        # Generate reply with full context
         reply = generate_reply(
             user_message,
             emotions,
@@ -66,12 +138,18 @@ def api_chat(request):
             memory=session.memory,
         )
 
-        # Persist
+        # Persist to database
         with transaction.atomic():
             m_user = Message(session=session, sender="user", text=user_message, emotions=emotions)
             m_user.set_plaintext(user_message); m_user.save()
+            
+            audit_logger.info(f"Message stored: user_id={getattr(request.user, 'id', None)}, session_id={session.id}, action=create_user_message")
+            
             m_bot = Message(session=session, sender="bot", text=reply)
             m_bot.set_plaintext(reply); m_bot.save()
+            
+            audit_logger.info(f"Message stored: user_id={getattr(request.user, 'id', None)}, session_id={session.id}, action=create_bot_message")
+            
             # Update summary every 3 user messages (approx)
             user_msg_count = session.messages.filter(sender="user").count()
             # Update summary more frequently early on (first 6 user msgs), then every 3
@@ -93,15 +171,17 @@ def api_chat(request):
 
         return JsonResponse({
             'user_message': user_message,
-            'emotions': emotions[:5],  # Top 5 emotions
+            'emotions': emotions[:5],
             'reply': reply,
             'session_id': session.id,
-            'preferences': {"tone": prefs.tone, "language": prefs.language},
+            'preferences': preferences,
             'summary': session.summary,
             'memory': session.memory,
+            'consent_required': False,
         })
 
     except Exception as e:
+        audit_logger.error(f"Chat error: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
 
 
@@ -415,5 +495,60 @@ def api_current_session(request):
             'stored_session_id': request.session.get('current_chat_session_id'),
             'is_authenticated': request.user.is_authenticated
         })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_consent(request):
+    """Handle consent management"""
+    try:
+        data = json.loads(request.body)
+        consent_given = data.get('consent', False)
+        
+        prefs = _get_or_create_preferences(request)
+        old_consent = prefs.data_consent
+        prefs.data_consent = bool(consent_given)
+        
+        if consent_given:
+            prefs.consent_timestamp = timezone.now()
+        prefs.save()
+        
+        audit_logger.info(f"Consent managed: user_id={getattr(request.user, 'id', 'anon')}, old_consent={old_consent}, new_consent={consent_given}")
+        
+        # If consent was revoked, optionally clear ephemeral session data
+        if old_consent and not consent_given:
+            if 'temp_chat_history' in request.session:
+                del request.session['temp_chat_history']
+            audit_logger.info(f"Consent revoked - cleared ephemeral session data")
+        
+        return JsonResponse({
+            'message': 'Consent updated successfully',
+            'consent_status': prefs.data_consent,
+            'consent_timestamp': prefs.consent_timestamp.isoformat() if prefs.consent_timestamp else None,
+            'has_ephemeral_data': 'temp_chat_history' in request.session
+        })
+        
+    except Exception as e:
+        audit_logger.error(f"Consent management error: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_consent_status(request):
+    """Get current consent status"""
+    try:
+        prefs = _get_or_create_preferences(request)
+        
+        return JsonResponse({
+            'consent_status': getattr(prefs, 'data_consent', False),
+            'consent_timestamp': prefs.consent_timestamp.isoformat() if getattr(prefs, 'consent_timestamp', None) else None,
+            'consent_version': getattr(prefs, 'consent_version', '1.0'),
+            'has_ephemeral_data': 'temp_chat_history' in request.session,
+            'ephemeral_message_count': len(request.session.get('temp_chat_history', []))
+        })
+        
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)

@@ -18,7 +18,8 @@ from django.contrib import admin
 from django.urls import path
 from core.views import (
     home, chat, api_chat, api_chat_history, api_chat_context,
-    api_new_chat, api_chat_sessions, api_chat_session_detail, api_switch_session, api_current_session
+    api_new_chat, api_chat_sessions, api_chat_session_detail, api_switch_session, api_current_session,
+    api_consent, api_consent_status
 )
 
 urlpatterns = [
@@ -32,4 +33,6 @@ urlpatterns = [
     path('api/chat/session/<int:session_id>/', api_chat_session_detail, name='api_chat_session_detail'),
     path('api/chat/switch/<int:session_id>/', api_switch_session, name='api_switch_session'),
     path('api/chat/current/', api_current_session, name='api_current_session'),
+    path('api/consent/', api_consent, name='api_consent'),
+    path('api/consent/status/', api_consent_status, name='api_consent_status'),
 ]
