@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enoki Chat</title>
+    <title>EnokiAI Chat</title>
     <style>
         * {
             margin: 0;
@@ -14,28 +14,46 @@
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
+            height: 100vh;
             color: #333;
             line-height: 1.6;
+            overflow: hidden;
         }
 
-        .container {
-            max-width: 900px;
+        .chat-container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            max-width: 1200px;
             margin: 0 auto;
-            padding: 2rem 1rem;
+            padding: 1rem;
         }
 
         .header {
-            text-align: center;
-            margin-bottom: 3rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+            margin-bottom: 1rem;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
         }
 
         .header h1 {
-            font-size: 3rem;
+            font-size: 2rem;
             font-weight: 700;
             color: white;
             text-shadow: 0 4px 20px rgba(0,0,0,0.3);
-            margin-bottom: 0.5rem;
             background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1);
             background-size: 300% 300%;
             background-clip: text;
@@ -44,43 +62,236 @@
             animation: gradientShift 3s ease-in-out infinite alternate;
         }
 
-        @keyframes gradientShift {
-            0% { background-position: 0% 50%; }
-            100% { background-position: 100% 50%; }
-        }
-
-        .card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(20px);
-            border-radius: 24px;
-            padding: 2rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1), 0 0 0 1px rgba(255,255,255,0.2);
-            border: 1px solid rgba(255,255,255,0.3);
+        .new-chat-btn {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 0.75rem 1rem;
+            cursor: pointer;
             transition: all 0.3s ease;
-        }
-
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 25px 50px rgba(0,0,0,0.15);
-        }
-
-        .card h3 {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: #2d3748;
-            margin-bottom: 1.5rem;
+            color: white;
+            font-size: 0.9rem;
+            font-weight: 500;
             display: flex;
             align-items: center;
             gap: 0.5rem;
         }
 
+        .new-chat-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 100% 50%; }
+        }
+
+        .settings-button {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+        }
+
+        .settings-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .settings-icon {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
+
+        .main-chat-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 1.5rem;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1), 0 0 0 1px rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .settings-panel {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 400px;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-left: 1px solid rgba(255,255,255,0.3);
+            box-shadow: -10px 0 30px rgba(0,0,0,0.1);
+            transition: right 0.3s ease;
+            z-index: 1000;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .settings-panel.open {
+            right: 0;
+        }
+
+        .chat-history-panel {
+            position: fixed;
+            top: 0;
+            left: -400px;
+            width: 400px;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(255,255,255,0.3);
+            box-shadow: 10px 0 30px rgba(0,0,0,0.1);
+            transition: left 0.3s ease;
+            z-index: 1000;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .chat-history-panel.open {
+            left: 0;
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .history-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .close-history {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #718096;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .close-history:hover {
+            background: rgba(0,0,0,0.05);
+            color: #2d3748;
+        }
+
+        .chat-session {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .chat-session:hover {
+            background: #f7fafc;
+            border-color: #667eea;
+            transform: translateY(-1px);
+        }
+
+        .chat-session.active {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            border-color: #667eea;
+        }
+
+        .session-title {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 0.5rem;
+        }
+
+        .session-preview {
+            font-size: 0.9rem;
+            color: #718096;
+            margin-bottom: 0.5rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .session-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            color: #a0aec0;
+        }
+
+        .history-btn {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+        }
+
+        .history-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .history-icon {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
+
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .settings-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .close-settings {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #718096;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .close-settings:hover {
+            background: rgba(0,0,0,0.05);
+            color: #2d3748;
+        }
+
         .preferences-form {
             display: flex;
+            flex-direction: column;
             gap: 1.5rem;
-            align-items: flex-end;
-            flex-wrap: wrap;
-            margin-bottom: 1rem;
+            margin-bottom: 2rem;
         }
 
         .form-group {
@@ -143,6 +354,36 @@
             border-left: 4px solid #667eea;
         }
 
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            background: #f8fafc;
+            border-radius: 16px;
+            margin-bottom: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.05);
+            border-radius: 10px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 10px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: #5a67d8;
+        }
+
         .message-form {
             display: flex;
             gap: 1rem;
@@ -157,6 +398,9 @@
             font-size: 1rem;
             transition: all 0.3s ease;
             background: white;
+            resize: none;
+            min-height: 50px;
+            max-height: 120px;
         }
 
         .message-input:focus {
@@ -181,6 +425,66 @@
         .send-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 8px 25px rgba(72, 187, 120, 0.4);
+        }
+
+        .send-btn:disabled {
+            background: linear-gradient(135deg, #a0aec0 0%, #718096 100%);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .thinking-indicator {
+            display: flex;
+            justify-content: flex-start;
+            margin-bottom: 1rem;
+            animation: fadeInUp 0.3s ease-out;
+        }
+
+        .thinking-content {
+            max-width: 70%;
+            padding: 1rem 1.25rem;
+            border-radius: 20px;
+            background: white;
+            color: #2d3748;
+            border: 1px solid #e2e8f0;
+            border-bottom-left-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .thinking-dots {
+            display: flex;
+            gap: 0.25rem;
+        }
+
+        .thinking-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #667eea;
+            animation: thinkingPulse 1.4s infinite;
+        }
+
+        .thinking-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .thinking-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes thinkingPulse {
+            0%, 60%, 100% {
+                opacity: 0.3;
+                transform: scale(1);
+            }
+            30% {
+                opacity: 1;
+                transform: scale(1.2);
+            }
         }
 
         .exchange {
@@ -240,40 +544,51 @@
             font-weight: 500;
         }
 
-        .chat-container {
-            height: 70vh;
-            display: flex;
-            flex-direction: column;
+        .settings-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
         }
 
-        .chat-box {
-            flex: 1;
-            overflow-y: auto;
+        .settings-overlay.open {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .session-info {
+            font-size: 0.85rem;
+            color: #718096;
             padding: 1rem;
-            background: #f8fafc;
-            border-radius: 16px;
-            margin-top: 1rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
+            background: rgba(247, 250, 252, 0.8);
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+            margin-bottom: 1rem;
         }
 
-        .chat-box::-webkit-scrollbar {
-            width: 8px;
+        .context-section {
+            margin-bottom: 2rem;
         }
 
-        .chat-box::-webkit-scrollbar-track {
-            background: rgba(0,0,0,0.05);
-            border-radius: 10px;
+        .context-section h4 {
+            color: #2d3748;
+            margin-bottom: 0.75rem;
+            font-size: 1.1rem;
         }
 
-        .chat-box::-webkit-scrollbar-thumb {
-            background: #667eea;
-            border-radius: 10px;
-        }
-
-        .chat-box::-webkit-scrollbar-thumb:hover {
-            background: #5a67d8;
+        .context-content {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 0.75rem;
+            min-height: 3rem;
+            white-space: pre-wrap;
         }
 
         .chat-message {
@@ -353,26 +668,89 @@
             margin-top: 0.5rem;
         }
 
-        .empty-chat {
+        .intro-message {
             display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            color: #718096;
-            text-align: center;
-        }
-
-        .empty-icon {
-            font-size: 3rem;
+            justify-content: flex-start;
             margin-bottom: 1rem;
-            opacity: 0.6;
+            animation: fadeInUp 0.8s ease-out;
         }
 
-        .empty-subtitle {
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .intro-content {
+            max-width: 80%;
+            padding: 1.5rem;
+            border-radius: 20px;
+            background: white;
+            color: #2d3748;
+            border: 1px solid #e2e8f0;
+            border-bottom-left-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            position: relative;
+        }
+
+        .intro-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .intro-avatar {
+            font-size: 1.5rem;
+        }
+
+        .intro-name {
             font-size: 0.9rem;
-            opacity: 0.7;
-            margin-top: 0.5rem;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .intro-text {
+            line-height: 1.6;
+            margin-bottom: 0.5rem;
+        }
+
+        .intro-features {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .intro-features h4 {
+            font-size: 0.9rem;
+            color: #4a5568;
+            margin-bottom: 0.5rem;
+        }
+
+        .intro-features ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .intro-features li {
+            font-size: 0.85rem;
+            color: #718096;
+            padding: 0.25rem 0;
+            position: relative;
+            padding-left: 1.5rem;
+        }
+
+        .intro-features li:before {
+            content: "✨";
+            position: absolute;
+            left: 0;
+            top: 0.25rem;
         }
 
         .icon {
@@ -409,110 +787,104 @@
             margin: 0.25rem 0;
         }
 
+        .refresh-btn {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .refresh-btn:hover {
+            background: rgba(102, 126, 234, 0.2);
+        }
+
         @media (max-width: 768px) {
-            .container {
-                padding: 1rem;
+            .chat-container {
+                padding: 0.5rem;
             }
             
-            .preferences-form {
+            .header {
                 flex-direction: column;
+                gap: 1rem;
                 align-items: stretch;
+            }
+            
+            .header-left {
+                justify-content: center;
+            }
+            
+            .header-right {
+                justify-content: center;
+            }
+            
+            .header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .new-chat-btn {
+                font-size: 0.8rem;
+                padding: 0.5rem 0.75rem;
+            }
+            
+            .settings-panel, .chat-history-panel {
+                width: 100%;
+                right: -100%;
+                left: -100%;
+            }
+            
+            .settings-panel.open {
+                right: 0;
+            }
+            
+            .chat-history-panel.open {
+                left: 0;
             }
             
             .message-form {
                 flex-direction: column;
+                gap: 0.5rem;
             }
             
-            .user-message {
-                margin-left: 0;
-            }
-            
-            .bot-message {
-                margin-right: 0;
+            .send-btn {
+                padding: 0.75rem 1.5rem;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="chat-container">
         <div class="header">
-            <h1>🍄 Enoki Chat</h1>
-        </div>
-
-        <div class="card">
-            <h3>
-                <span class="icon">⚙️</span>
-                Preferences
-            </h3>
-            <form method="POST" class="preferences-form">
-                <input type="hidden" name="update_prefs" value="1" />
-                <div class="form-group">
-                    <label for="tone">Tone</label>
-                    <select name="tone" id="tone">
-                        {% for t in tones %}
-                            <option value="{{ t }}" {% if preferences.tone == t %}selected{% endif %}>{{ t|title }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="language">Language</label>
-                    <select name="language" id="language">
-                        <option value="en" {% if preferences.language == 'en' %}selected{% endif %}>English</option>
-                        <option value="es" {% if preferences.language == 'es' %}selected{% endif %}>Spanish</option>
-                        <option value="fr" {% if preferences.language == 'fr' %}selected{% endif %}>French</option>
-                        <option value="tl" {% if preferences.language == 'tl' %}selected{% endif %}>Tagalog</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn">Save Preferences</button>
-            </form>
-            <div class="session-info">
-                <strong>Session ID:</strong> {{ session.id }} {% if not is_authenticated %}(Anonymous){% endif %}
+            <div class="header-left">
+                <h1>🍄 EnokiAI Chat</h1>
+                <button class="new-chat-btn" id="new-chat-btn">
+                    <span>✨</span>
+                    New Chat
+                </button>
+            </div>
+            <div class="header-right">
+                <button class="history-btn" id="history-toggle">
+                    <svg class="history-icon" viewBox="0 0 24 24">
+                        <path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3Z"/>
+                    </svg>
+                </button>
+                <button class="settings-button" id="settings-toggle">
+                    <svg class="settings-icon" viewBox="0 0 24 24">
+                        <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12A3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97c0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1c0 .33.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66Z"/>
+                    </svg>
+                </button>
             </div>
         </div>
 
-        <div class="card">
-            <h3>
-                <span class="icon">💬</span>
-                New Message
-            </h3>
-            <form method="POST" class="message-form">
-                {% csrf_token %}
-                <input type="text" name="message" placeholder="Type your message here..." required class="message-input" />
-                <button type="submit" class="send-btn">Send</button>
-            </form>
-        </div>
-
-        <div class="card" id="context-card">
-            <h3>
-                <span class="icon">🧭</span>
-                Conversation Context
-            </h3>
-            <div style="display:flex; gap: .5rem; align-items:center; margin-bottom:.75rem;">
-                <button class="btn" id="refresh-context">Refresh</button>
-                <span class="session-info" id="context-session" style="padding:.4rem .6rem;">Session: {{ session.id }}</span>
-            </div>
-            <div class="context-grid">
-                <div class="context-section">
-                    <h4>Summary</h4>
-                    <div id="summary-content" style="white-space:pre-wrap; background:#f7fafc; border:1px solid #e2e8f0; border-radius:12px; padding:.75rem; min-height:3rem;"></div>
-                </div>
-                <div class="context-section">
-                    <h4>Memory</h4>
-                    <div id="memory-content" style="background:#f7fafc; border:1px solid #e2e8f0; border-radius:12px; padding:.75rem; min-height:3rem;"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="card chat-container">
-            <h3>
-                <span class="icon">💬</span>
-                Conversation
-            </h3>
-            <div class="chat-box">
+        <div class="main-chat-card">
+            <div class="chat-messages" id="chat-messages">
                 {% for m in messages %}
                     <div class="chat-message {% if m.sender == 'user' %}user-chat{% else %}bot-chat{% endif %}">
                         <div class="message-content">
-                            <div class="sender-name">{{ m.sender|title }}</div>
+                            <div class="sender-name">{% if m.sender == 'user' %}User{% else %}EnokiAI{% endif %}</div>
                             <div class="message-text">{{ m.plaintext }}</div>
                             {% if m.emotions %}
                                 <div class="message-emotions">
@@ -525,12 +897,100 @@
                         </div>
                     </div>
                 {% empty %}
-                    <div class="empty-chat">
-                        <div class="empty-icon">🌟</div>
-                        <p>Start your conversation with Enoki!</p>
-                        <p class="empty-subtitle">Type a message below to begin chatting</p>
+                    <div class="intro-message">
+                        <div class="intro-content">
+                            <div class="intro-header">
+                                <span class="intro-avatar">🍄</span>
+                                <span class="intro-name">EnokiAI</span>
+                            </div>
+                            <div class="intro-text">
+                                Hello! I'm EnokiAI, your mental health companion. I'm here to listen, support, and help you navigate your thoughts and feelings in a safe, non-judgmental space.
+                            </div>
+                            <div class="intro-features">
+                                <h4>What I can help with:</h4>
+                                <ul>
+                                    <li>Active listening and emotional support</li>
+                                    <li>Stress management techniques</li>
+                                    <li>Mindfulness and coping strategies</li>
+                                    <li>General mental wellness guidance</li>
+                                </ul>
+                            </div>
+                            <div class="intro-text" style="margin-top: 1rem; font-style: italic; font-size: 0.9rem; color: #718096;">
+                                Remember: I'm here to support you, but I'm not a replacement for professional mental health care. If you're experiencing a crisis, please reach out to a mental health professional or crisis helpline.
+                            </div>
+                        </div>
                     </div>
                 {% endfor %}
+            </div>
+
+            <div class="message-form">
+                <textarea name="message" placeholder="Type your message here..." required class="message-input" rows="1" 
+                    onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();handleSendMessage();return false;}"></textarea>
+                <button type="button" class="send-btn" onclick="handleSendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat History Panel -->
+    <div class="settings-overlay" id="history-overlay"></div>
+    <div class="chat-history-panel" id="history-panel">
+        <div class="history-header">
+            <h2 class="history-title">📚 Chat History</h2>
+            <button class="close-history" id="close-history">&times;</button>
+        </div>
+        
+        <div id="chat-sessions-list">
+            <!-- Chat sessions will be loaded here -->
+        </div>
+    </div>
+
+    <!-- Settings Panel -->
+    <div class="settings-overlay" id="settings-overlay"></div>
+    <div class="settings-panel" id="settings-panel">
+        <div class="settings-header">
+            <h2 class="settings-title">⚙️ Settings</h2>
+            <button class="close-settings" id="close-settings">&times;</button>
+        </div>
+
+        <form method="POST" class="preferences-form">
+            {% csrf_token %}
+            <input type="hidden" name="update_prefs" value="1" />
+            <div class="form-group">
+                <label for="tone">Tone</label>
+                <select name="tone" id="tone">
+                    {% for t in tones %}
+                        <option value="{{ t }}" {% if preferences.tone == t %}selected{% endif %}>{{ t|title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="language">Language</label>
+                <select name="language" id="language">
+                    <option value="en" {% if preferences.language == 'en' %}selected{% endif %}>English</option>
+                    <option value="es" {% if preferences.language == 'es' %}selected{% endif %}>Spanish</option>
+                    <option value="fr" {% if preferences.language == 'fr' %}selected{% endif %}>French</option>
+                    <option value="tl" {% if preferences.language == 'tl' %}selected{% endif %}>Tagalog</option>
+                </select>
+            </div>
+            <button type="submit" class="btn">Save Preferences</button>
+        </form>
+
+        <div class="session-info">
+            <strong>Session ID:</strong> {{ session.id }} {% if not is_authenticated %}(Anonymous){% endif %}
+        </div>
+
+        <div class="context-section">
+            <div style="display:flex; gap: .5rem; align-items:center; margin-bottom:.75rem;">
+                <h4>🧭 Conversation Context</h4>
+                <button class="refresh-btn" id="refresh-context">Refresh</button>
+            </div>
+            <div class="context-section">
+                <h4>Summary</h4>
+                <div id="summary-content" class="context-content"></div>
+            </div>
+            <div class="context-section">
+                <h4>Memory</h4>
+                <div id="memory-content" class="context-content"></div>
             </div>
         </div>
     </div>
@@ -541,16 +1001,95 @@
             const messageForm = document.querySelector('.message-form');
             const messageInput = document.querySelector('.message-input');
             const sendBtn = document.querySelector('.send-btn');
-            const chatBox = document.querySelector('.chat-box');
+            const chatMessages = document.getElementById('chat-messages');
             const toneSelect = document.getElementById('tone');
             const languageSelect = document.getElementById('language');
             const refreshBtn = document.getElementById('refresh-context');
             const summaryEl = document.getElementById('summary-content');
             const memoryEl = document.getElementById('memory-content');
-            const contextSession = document.getElementById('context-session');
+            
+            // Settings panel elements
+            const settingsToggle = document.getElementById('settings-toggle');
+            const settingsPanel = document.getElementById('settings-panel');
+            const settingsOverlay = document.getElementById('settings-overlay');
+            const closeSettings = document.getElementById('close-settings');
+            
+            // History panel elements
+            const historyToggle = document.getElementById('history-toggle');
+            const historyPanel = document.getElementById('history-panel');
+            const historyOverlay = document.getElementById('history-overlay');
+            const closeHistory = document.getElementById('close-history');
+            const chatSessionsList = document.getElementById('chat-sessions-list');
+            
+            // New chat button
+            const newChatBtn = document.getElementById('new-chat-btn');
+
+            // Validate required elements
+            if (!messageInput || !sendBtn || !chatMessages) {
+                console.error('Required chat elements not found:', {
+                    messageInput: !!messageInput,
+                    sendBtn: !!sendBtn, 
+                    chatMessages: !!chatMessages
+                });
+                return;
+            }
+            
+            console.log('All required elements found, setting up event listeners');
+            
+            // Global function for inline handlers
+            window.handleSendMessage = function() {
+                console.log('handleSendMessage called');
+                const message = messageInput.value.trim();
+                if (message && !sendBtn.disabled) {
+                    sendMessage(message);
+                }
+            };
 
             function scrollToBottom() {
-                if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
+                if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+
+            function openSettings() {
+                settingsPanel.classList.add('open');
+                settingsOverlay.classList.add('open');
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closeSettingsPanel() {
+                settingsPanel.classList.remove('open');
+                settingsOverlay.classList.remove('open');
+                document.body.style.overflow = '';
+            }
+
+            function openHistory() {
+                historyPanel.classList.add('open');
+                historyOverlay.classList.add('open');
+                document.body.style.overflow = 'hidden';
+                loadChatHistory();
+            }
+
+            function closeHistoryPanel() {
+                historyPanel.classList.remove('open');
+                historyOverlay.classList.remove('open');
+                document.body.style.overflow = '';
+            }
+
+            // Settings panel handlers
+            if (settingsToggle) settingsToggle.addEventListener('click', openSettings);
+            if (closeSettings) closeSettings.addEventListener('click', closeSettingsPanel);
+            if (settingsOverlay) settingsOverlay.addEventListener('click', closeSettingsPanel);
+            
+            // History panel handlers
+            if (historyToggle) historyToggle.addEventListener('click', openHistory);
+            if (closeHistory) closeHistory.addEventListener('click', closeHistoryPanel);
+            if (historyOverlay) historyOverlay.addEventListener('click', closeHistoryPanel);
+
+            // Auto-resize textarea
+            if (messageInput) {
+                messageInput.addEventListener('input', function() {
+                    this.style.height = 'auto';
+                    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+                });
             }
 
             function fmtTime(d = new Date()) {
@@ -563,21 +1102,51 @@
             }
 
             function appendMessage({ sender, text, emotions=null, timeStr=null }) {
+                // Only clear intro message when user sends their first message
+                if (sender === 'user') {
+                    clearIntroMessage();
+                }
                 const isUser = sender === 'user';
                 const wrapper = document.createElement('div');
                 wrapper.className = `chat-message ${isUser ? 'user-chat' : 'bot-chat'}`;
                 const content = document.createElement('div');
                 content.className = 'message-content';
                 content.innerHTML = `
-                    <div class="sender-name">${isUser ? 'User' : 'Enoki'}</div>
+                    <div class="sender-name">${isUser ? 'User' : 'EnokiAI'}</div>
                     <div class="message-text"></div>
                     ${renderEmotions(emotions)}
                     <div class="message-time">${timeStr || fmtTime()}</div>
                 `;
                 content.querySelector('.message-text').textContent = text;
                 wrapper.appendChild(content);
-                chatBox.appendChild(wrapper);
+                chatMessages.appendChild(wrapper);
                 scrollToBottom();
+            }
+
+            function showThinkingIndicator() {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'thinking-indicator';
+                wrapper.id = 'thinking-indicator';
+                wrapper.innerHTML = `
+                    <div class="thinking-content">
+                        <div class="sender-name" style="font-size: 0.8rem; font-weight: 600; margin-bottom: 0; opacity: 0.8;">EnokiAI</div>
+                        <div class="thinking-dots">
+                            <div class="thinking-dot"></div>
+                            <div class="thinking-dot"></div>
+                            <div class="thinking-dot"></div>
+                        </div>
+                        <span style="font-size: 0.9rem; color: #718096;">is thinking...</span>
+                    </div>
+                `;
+                chatMessages.appendChild(wrapper);
+                scrollToBottom();
+            }
+
+            function hideThinkingIndicator() {
+                const indicator = document.getElementById('thinking-indicator');
+                if (indicator) {
+                    indicator.remove();
+                }
             }
 
             function renderMemory(memory) {
@@ -613,7 +1182,6 @@
                     const res = await fetch('/api/chat/context/', { credentials: 'same-origin' });
                     const data = await res.json();
                     if (data.error) throw new Error(data.error);
-                    if (contextSession) contextSession.textContent = `Session: ${data.session_id}`;
                     if (summaryEl) summaryEl.textContent = data.summary || '';
                     if (memoryEl) memoryEl.innerHTML = renderMemory(data.memory);
                 } catch (err) {
@@ -622,27 +1190,49 @@
             }
 
             async function sendMessage(text) {
-                if (!text || !text.trim()) return;
+                console.log('sendMessage called with text:', text);
+                console.log('sendBtn.disabled:', sendBtn.disabled);
+                if (!text || !text.trim() || sendBtn.disabled) {
+                    console.log('Returning early from sendMessage');
+                    return;
+                }
+                
                 const payload = {
                     message: text.trim(),
                     tone: toneSelect ? toneSelect.value : undefined,
                     language: languageSelect ? languageSelect.value : undefined,
                 };
+                console.log('Payload:', payload);
                 try {
                     sendBtn.disabled = true;
-                    sendBtn.textContent = 'Sending...';
+                    
+                    // Add user message
                     appendMessage({ sender: 'user', text: payload.message, emotions: null });
+                    
+                    // Clear the input immediately
+                    messageInput.value = '';
+                    messageInput.style.height = 'auto';
+                    
+                    // Show thinking indicator
+                    showThinkingIndicator();
+                    
                     const res = await fetch('/api/chat/', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''
+                        },
                         credentials: 'same-origin',
                         body: JSON.stringify(payload),
                     });
                     const data = await res.json();
                     if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
 
+                    // Hide thinking indicator
+                    hideThinkingIndicator();
+
                     // Show user emotions (from service) on the last user message bubble
-                    const lastUser = chatBox.querySelector('.chat-message.user-chat:last-of-type');
+                    const lastUser = chatMessages.querySelector('.chat-message.user-chat:last-of-type');
                     if (lastUser && data.emotions && data.emotions.length) {
                         const emoDiv = document.createElement('div');
                         emoDiv.className = 'message-emotions';
@@ -655,37 +1245,238 @@
                     if (summaryEl) summaryEl.textContent = data.summary || '';
                     if (memoryEl) memoryEl.innerHTML = renderMemory(data.memory);
                 } catch (err) {
+                    hideThinkingIndicator();
                     appendMessage({ sender: 'bot', text: `Sorry, I hit an error: ${err.message}` });
                 } finally {
                     sendBtn.disabled = false;
-                    sendBtn.textContent = 'Send';
-                    messageInput.value = '';
                     messageInput.focus();
                 }
             }
 
-            // Message form submit
-            messageForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                sendMessage(messageInput.value);
-            });
-
-            // Enter to send
-            messageInput.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
+            // Send button click
+            if (sendBtn) {
+                console.log('Adding click event listener to send button');
+                sendBtn.addEventListener('click', function(e) {
+                    console.log('Send button clicked!');
                     e.preventDefault();
-                    sendMessage(messageInput.value);
+                    e.stopPropagation();
+                    const message = messageInput.value.trim();
+                    console.log('Message to send:', message);
+                    if (message && !sendBtn.disabled) {
+                        console.log('Calling sendMessage');
+                        sendMessage(message);
+                    }
+                    return false;
+                });
+            }
+
+            // Enter to send (Shift+Enter for new line)  
+            if (messageInput) {
+                console.log('Adding keydown event listener to message input');
+                messageInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        console.log('Enter key pressed!');
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const message = messageInput.value.trim();
+                        console.log('Message to send:', message);
+                        if (message && !sendBtn.disabled) {
+                            console.log('Calling sendMessage from Enter key');
+                            sendMessage(message);
+                        }
+                        return false;
+                    }
+                });
+            }
+
+            // Clear intro message when user starts chatting
+            function clearIntroMessage() {
+                const introMessage = chatMessages.querySelector('.intro-message');
+                if (introMessage) {
+                    introMessage.remove();
                 }
-            });
+            }
+
+            // New chat functionality
+            async function startNewChat() {
+                try {
+                    const res = await fetch('/api/chat/new/', {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''
+                        },
+                        credentials: 'same-origin'
+                    });
+                    const data = await res.json();
+                    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+                    
+                    // Clear current chat
+                    chatMessages.innerHTML = `
+                        <div class="intro-message">
+                            <div class="intro-content">
+                                <div class="intro-header">
+                                    <span class="intro-avatar">🍄</span>
+                                    <span class="intro-name">EnokiAI</span>
+                                </div>
+                                <div class="intro-text">
+                                    Hello! I'm EnokiAI, your mental health companion. I'm here to listen, support, and help you navigate your thoughts and feelings in a safe, non-judgmental space.
+                                </div>
+                                <div class="intro-features">
+                                    <h4>What I can help with:</h4>
+                                    <ul>
+                                        <li>Active listening and emotional support</li>
+                                        <li>Stress management techniques</li>
+                                        <li>Mindfulness and coping strategies</li>
+                                        <li>General mental wellness guidance</li>
+                                    </ul>
+                                </div>
+                                <div class="intro-text" style="margin-top: 1rem; font-style: italic; font-size: 0.9rem; color: #718096;">
+                                    Remember: I'm here to support you, but I'm not a replacement for professional mental health care. If you're experiencing a crisis, please reach out to a mental health professional or crisis helpline.
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Update context
+                    if (summaryEl) summaryEl.textContent = '';
+                    if (memoryEl) memoryEl.innerHTML = '<em>No memory yet.</em>';
+                    
+                    console.log('New chat started:', data.session_id);
+                } catch (err) {
+                    console.error('Error starting new chat:', err);
+                    alert('Failed to start new chat. Please try again.');
+                }
+            }
+
+            // Load chat history
+            async function loadChatHistory() {
+                try {
+                    const res = await fetch('/api/chat/history/', {
+                        credentials: 'same-origin'
+                    });
+                    const data = await res.json();
+                    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+                    
+                    renderChatHistory(data.sessions);
+                } catch (err) {
+                    console.error('Error loading chat history:', err);
+                    chatSessionsList.innerHTML = '<p style="color: #718096; text-align: center; padding: 2rem;">Failed to load chat history</p>';
+                }
+            }
+
+            // Render chat history
+            function renderChatHistory(sessions) {
+                if (!sessions || sessions.length === 0) {
+                    chatSessionsList.innerHTML = '<p style="color: #718096; text-align: center; padding: 2rem;">No chat history yet</p>';
+                    return;
+                }
+
+                chatSessionsList.innerHTML = sessions.map(session => `
+                    <div class="chat-session ${session.is_current ? 'active' : ''}" data-session-id="${session.id}">
+                        <div class="session-title">${session.title || 'Chat Session'}</div>
+                        <div class="session-preview">${session.preview || 'No messages yet'}</div>
+                        <div class="session-meta">
+                            <span>${session.message_count} messages</span>
+                            <span>${formatDate(session.updated_at)}</span>
+                        </div>
+                    </div>
+                `).join('');
+
+                // Add click handlers for session selection
+                document.querySelectorAll('.chat-session').forEach(sessionEl => {
+                    sessionEl.addEventListener('click', function() {
+                        const sessionId = this.dataset.sessionId;
+                        loadChatSession(sessionId);
+                    });
+                });
+            }
+
+            // Load specific chat session
+            async function loadChatSession(sessionId) {
+                try {
+                    // First, switch to this session on the backend
+                    const switchRes = await fetch(`/api/chat/switch/${sessionId}/`, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''
+                        },
+                        credentials: 'same-origin'
+                    });
+                    const switchData = await switchRes.json();
+                    if (!switchRes.ok || switchData.error) throw new Error(switchData.error || `HTTP ${switchRes.status}`);
+                    
+                    // Now get the session details
+                    const res = await fetch(`/api/chat/session/${sessionId}/`, {
+                        credentials: 'same-origin'
+                    });
+                    const data = await res.json();
+                    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+                    
+                    // Clear current chat and load session messages
+                    chatMessages.innerHTML = '';
+                    data.messages.forEach(message => {
+                        appendMessage({
+                            sender: message.sender,
+                            text: message.text,
+                            emotions: message.emotions,
+                            timeStr: formatTime(message.created_at)
+                        });
+                    });
+                    
+                    // Update context
+                    if (summaryEl) summaryEl.textContent = data.summary || '';
+                    if (memoryEl) memoryEl.innerHTML = renderMemory(data.memory);
+                    
+                    // Close history panel
+                    closeHistoryPanel();
+                    
+                    console.log('Loaded chat session:', sessionId);
+                } catch (err) {
+                    console.error('Error loading chat session:', err);
+                    alert('Failed to load chat session. Please try again.');
+                }
+            }
+
+            // Format date for display
+            function formatDate(dateStr) {
+                const date = new Date(dateStr);
+                const now = new Date();
+                const diffMs = now - date;
+                const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                
+                if (diffDays === 0) return 'Today';
+                if (diffDays === 1) return 'Yesterday';
+                if (diffDays < 7) return `${diffDays} days ago`;
+                return date.toLocaleDateString();
+            }
+
+            // Format time for message display
+            function formatTime(dateStr) {
+                return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
 
             // Refresh context button
             if (refreshBtn) refreshBtn.addEventListener('click', function() {
                 fetchContext();
             });
 
+            // New chat button
+            if (newChatBtn) newChatBtn.addEventListener('click', function() {
+                if (confirm('Start a new chat? Your current conversation will be saved to history.')) {
+                    startNewChat();
+                }
+            });
+
             // Initial behaviors
             scrollToBottom();
             fetchContext();
+            
+            // Final check - ensure event listeners are working
+            console.log('DOM fully loaded, all event listeners should be attached');
+            console.log('sendBtn element:', sendBtn);
+            console.log('messageInput element:', messageInput);
         });
     </script>
 </body>

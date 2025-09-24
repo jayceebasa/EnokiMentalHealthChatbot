@@ -169,15 +169,34 @@ def _get_or_create_preferences(request):
 
 
 def _get_or_create_session(request):
+    # Check if there's a current active session ID stored in the session
+    current_session_id = request.session.get('current_chat_session_id')
+    
+    if current_session_id:
+        try:
+            if request.user.is_authenticated:
+                session = ChatSession.objects.get(id=current_session_id, user=request.user)
+            else:
+                anon_id = _get_or_create_anon_id(request)
+                session = ChatSession.objects.get(id=current_session_id, anon_id=anon_id)
+            return session
+        except ChatSession.DoesNotExist:
+            # Current session doesn't exist anymore, remove from session
+            del request.session['current_chat_session_id']
+    
+    # No current session or it doesn't exist, get or create the most recent one
     if request.user.is_authenticated:
         session = ChatSession.objects.filter(user=request.user).order_by("-created_at").first()
         if not session:
             session = ChatSession.objects.create(user=request.user)
-        return session
-    anon_id = _get_or_create_anon_id(request)
-    session = ChatSession.objects.filter(anon_id=anon_id).order_by("-created_at").first()
-    if not session:
-        session = ChatSession.objects.create(anon_id=anon_id)
+    else:
+        anon_id = _get_or_create_anon_id(request)
+        session = ChatSession.objects.filter(anon_id=anon_id).order_by("-created_at").first()
+        if not session:
+            session = ChatSession.objects.create(anon_id=anon_id)
+    
+    # Store this session as the current active session
+    request.session['current_chat_session_id'] = session.id
     return session
 
 
@@ -259,3 +278,142 @@ def chat(request):
         "summary": session.summary,
         "memory": session.memory,
     })
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_new_chat(request):
+    """Create a new chat session, preserving the current one in history."""
+    try:
+        prefs = _get_or_create_preferences(request)
+        
+        # Create new session
+        if request.user.is_authenticated:
+            new_session = ChatSession.objects.create(user=request.user)
+        else:
+            anon_id = _get_or_create_anon_id(request)
+            new_session = ChatSession.objects.create(anon_id=anon_id)
+        
+        # Set this new session as the current active session
+        request.session['current_chat_session_id'] = new_session.id
+        
+        return JsonResponse({
+            'session_id': new_session.id,
+            'message': 'New chat session created successfully'
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_chat_sessions(request):
+    """Get all chat sessions for the current user/anonymous user."""
+    try:
+        if request.user.is_authenticated:
+            sessions = ChatSession.objects.filter(user=request.user).order_by('-updated_at')
+        else:
+            anon_id = _get_or_create_anon_id(request)
+            sessions = ChatSession.objects.filter(anon_id=anon_id).order_by('-updated_at')
+        
+        current_session = _get_or_create_session(request)
+        
+        session_list = []
+        for session in sessions:
+            # Get first user message for preview
+            first_message = session.messages.filter(sender='user').first()
+            preview = first_message.plaintext[:100] if first_message else "No messages yet"
+            
+            # Generate title from first message or use default
+            title = first_message.plaintext[:50] + "..." if first_message and len(first_message.plaintext) > 50 else (first_message.plaintext if first_message else "New Chat")
+            
+            session_list.append({
+                'id': session.id,
+                'title': title,
+                'preview': preview,
+                'message_count': session.messages.count(),
+                'created_at': session.created_at.isoformat(),
+                'updated_at': session.updated_at.isoformat(),
+                'is_current': session.id == current_session.id
+            })
+        
+        return JsonResponse({
+            'sessions': session_list,
+            'current_session_id': current_session.id
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_chat_session_detail(request, session_id):
+    """Get details of a specific chat session."""
+    try:
+        if request.user.is_authenticated:
+            session = ChatSession.objects.get(id=session_id, user=request.user)
+        else:
+            anon_id = _get_or_create_anon_id(request)
+            session = ChatSession.objects.get(id=session_id, anon_id=anon_id)
+        
+        messages = session.messages.order_by('created_at')
+        message_list = []
+        for msg in messages:
+            message_list.append({
+                'sender': msg.sender,
+                'text': getattr(msg, 'plaintext', msg.text),
+                'emotions': msg.emotions,
+                'created_at': msg.created_at.isoformat()
+            })
+        
+        return JsonResponse({
+            'session_id': session.id,
+            'messages': message_list,
+            'summary': session.summary,
+            'memory': session.memory,
+            'created_at': session.created_at.isoformat(),
+            'updated_at': session.updated_at.isoformat()
+        })
+    except ChatSession.DoesNotExist:
+        return JsonResponse({'error': 'Chat session not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_switch_session(request, session_id):
+    """Switch to a specific chat session as the active session."""
+    try:
+        if request.user.is_authenticated:
+            session = ChatSession.objects.get(id=session_id, user=request.user)
+        else:
+            anon_id = _get_or_create_anon_id(request)
+            session = ChatSession.objects.get(id=session_id, anon_id=anon_id)
+        
+        # Set this session as the current active session
+        request.session['current_chat_session_id'] = session.id
+        
+        return JsonResponse({
+            'session_id': session.id,
+            'message': 'Successfully switched to chat session'
+        })
+    except ChatSession.DoesNotExist:
+        return JsonResponse({'error': 'Chat session not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_current_session(request):
+    """Get the current active session ID for debugging."""
+    try:
+        session = _get_or_create_session(request)
+        return JsonResponse({
+            'current_session_id': session.id,
+            'stored_session_id': request.session.get('current_chat_session_id'),
+            'is_authenticated': request.user.is_authenticated
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
