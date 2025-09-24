@@ -1,0 +1,19 @@
+<h1>Enoki Chat</h1>
+
+<form method="POST">
+  {% csrf_token %}
+  <input type="text" name="message" placeholder="Say something..." required>
+  <button type="submit">Send</button>
+</form>
+
+{% if user_message %}
+  <p><strong>You:</strong> {{ user_message }}</p>
+  <p><strong>Enoki:</strong> {{ reply }}</p>
+
+  <h4>Detected emotions:</h4>
+  <ul>
+    {% for emo in emotions %}
+      <li>{{ emo.label }} - {{ emo.score|floatformat:2 }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
