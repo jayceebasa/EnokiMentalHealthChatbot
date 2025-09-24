@@ -73,18 +73,31 @@ WSGI_APPLICATION = 'enoki.wsgi.application'
 
 
 # Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+# If Postgres environment variables are provided, use Postgres.
+# Otherwise (or if USE_SQLITE=1), fall back to local SQLite for easy dev.
+# This avoids errors like: could not translate host name "db" to address
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("POSTGRES_DB"),
-        "USER": os.getenv("POSTGRES_USER"),
-        "PASSWORD": os.getenv("POSTGRES_PASSWORD"),
-        "HOST": os.getenv("POSTGRES_HOST", "localhost"),
-        "PORT": os.getenv("POSTGRES_PORT", 5432),
+USE_SQLITE = os.getenv("USE_SQLITE", "0") == "1"
+POSTGRES_DB = os.getenv("POSTGRES_DB")
+
+if not USE_SQLITE and POSTGRES_DB:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": POSTGRES_DB,
+            "USER": os.getenv("POSTGRES_USER"),
+            "PASSWORD": os.getenv("POSTGRES_PASSWORD"),
+            "HOST": os.getenv("POSTGRES_HOST", "localhost"),  # in docker-compose typically 'db'
+            "PORT": os.getenv("POSTGRES_PORT", 5432),
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 
 # Password validation

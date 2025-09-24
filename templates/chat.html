@@ -1,19 +1,692 @@
-<h1>Enoki Chat</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enoki Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-<form method="POST">
-  {% csrf_token %}
-  <input type="text" name="message" placeholder="Say something..." required>
-  <button type="submit">Send</button>
-</form>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            line-height: 1.6;
+        }
 
-{% if user_message %}
-  <p><strong>You:</strong> {{ user_message }}</p>
-  <p><strong>Enoki:</strong> {{ reply }}</p>
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
 
-  <h4>Detected emotions:</h4>
-  <ul>
-    {% for emo in emotions %}
-      <li>{{ emo.label }} - {{ emo.score|floatformat:2 }}</li>
-    {% endfor %}
-  </ul>
-{% endif %}
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            color: white;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            margin-bottom: 0.5rem;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1);
+            background-size: 300% 300%;
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: gradientShift 3s ease-in-out infinite alternate;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 100% 50%; }
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1), 0 0 0 1px rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+        }
+
+        .card h3 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .preferences-form {
+            display: flex;
+            gap: 1.5rem;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-group label {
+            font-weight: 500;
+            color: #4a5568;
+            font-size: 0.9rem;
+        }
+
+        select, input[type="text"] {
+            padding: 0.75rem 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: white;
+            min-width: 140px;
+        }
+
+        select:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .btn {
+            padding: 0.75rem 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .session-info {
+            font-size: 0.85rem;
+            color: #718096;
+            padding: 1rem;
+            background: rgba(247, 250, 252, 0.8);
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+
+        .message-form {
+            display: flex;
+            gap: 1rem;
+            align-items: stretch;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 1rem 1.5rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 16px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .message-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .send-btn {
+            padding: 1rem 2rem;
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            color: white;
+            border: none;
+            border-radius: 16px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(72, 187, 120, 0.3);
+        }
+
+        .send-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(72, 187, 120, 0.4);
+        }
+
+        .exchange {
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+
+        .exchange h4 {
+            color: #2d3748;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+
+        .message-bubble {
+            margin: 1rem 0;
+            padding: 1rem 1.5rem;
+            border-radius: 16px;
+            position: relative;
+        }
+
+        .user-message {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin-left: 2rem;
+        }
+
+        .bot-message {
+            background: white;
+            border: 1px solid #e2e8f0;
+            margin-right: 2rem;
+        }
+
+        .emotions {
+            margin-top: 1rem;
+        }
+
+        .emotions h5 {
+            color: #4a5568;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .emotion-tags {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .emotion-tag {
+            background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .chat-container {
+            height: 70vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-box {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            background: #f8fafc;
+            border-radius: 16px;
+            margin-top: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .chat-box::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .chat-box::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.05);
+            border-radius: 10px;
+        }
+
+        .chat-box::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 10px;
+        }
+
+        .chat-box::-webkit-scrollbar-thumb:hover {
+            background: #5a67d8;
+        }
+
+        .chat-message {
+            display: flex;
+            margin-bottom: 1rem;
+        }
+
+        .user-chat {
+            justify-content: flex-end;
+        }
+
+        .bot-chat {
+            justify-content: flex-start;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 1rem 1.25rem;
+            border-radius: 20px;
+            position: relative;
+        }
+
+        .user-chat .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 6px;
+        }
+
+        .bot-chat .message-content {
+            background: white;
+            color: #2d3748;
+            border: 1px solid #e2e8f0;
+            border-bottom-left-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .sender-name {
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            opacity: 0.8;
+        }
+
+        .message-text {
+            line-height: 1.5;
+            margin-bottom: 0.5rem;
+        }
+
+        .message-emotions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin: 0.75rem 0 0.5rem 0;
+        }
+
+        .emotion-pill {
+            background: rgba(255,255,255,0.2);
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+
+        .user-chat .emotion-pill {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+
+        .bot-chat .emotion-pill {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+
+        .message-time {
+            font-size: 0.7rem;
+            opacity: 0.6;
+            margin-top: 0.5rem;
+        }
+
+        .empty-chat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #718096;
+            text-align: center;
+        }
+
+        .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.6;
+        }
+
+        .empty-subtitle {
+            font-size: 0.9rem;
+            opacity: 0.7;
+            margin-top: 0.5rem;
+        }
+
+        .icon {
+            width: 20px;
+            height: 20px;
+            display: inline-block;
+        }
+
+        /* Context panel styles */
+        .context-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+        .context-section h4 {
+            color: #2d3748;
+            margin-bottom: 0.5rem;
+        }
+        .key {
+            font-weight: 600;
+            color: #4a5568;
+            margin-right: 0.25rem;
+        }
+        .pill {
+            display: inline-block;
+            background: rgba(102, 126, 234, 0.1);
+            color: #4c51bf;
+            padding: 0.2rem 0.6rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            margin: 0.1rem 0.25rem 0.1rem 0;
+        }
+        .row {
+            margin: 0.25rem 0;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .preferences-form {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .message-form {
+                flex-direction: column;
+            }
+            
+            .user-message {
+                margin-left: 0;
+            }
+            
+            .bot-message {
+                margin-right: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🍄 Enoki Chat</h1>
+        </div>
+
+        <div class="card">
+            <h3>
+                <span class="icon">⚙️</span>
+                Preferences
+            </h3>
+            <form method="POST" class="preferences-form">
+                <input type="hidden" name="update_prefs" value="1" />
+                <div class="form-group">
+                    <label for="tone">Tone</label>
+                    <select name="tone" id="tone">
+                        {% for t in tones %}
+                            <option value="{{ t }}" {% if preferences.tone == t %}selected{% endif %}>{{ t|title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="language">Language</label>
+                    <select name="language" id="language">
+                        <option value="en" {% if preferences.language == 'en' %}selected{% endif %}>English</option>
+                        <option value="es" {% if preferences.language == 'es' %}selected{% endif %}>Spanish</option>
+                        <option value="fr" {% if preferences.language == 'fr' %}selected{% endif %}>French</option>
+                        <option value="tl" {% if preferences.language == 'tl' %}selected{% endif %}>Tagalog</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn">Save Preferences</button>
+            </form>
+            <div class="session-info">
+                <strong>Session ID:</strong> {{ session.id }} {% if not is_authenticated %}(Anonymous){% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>
+                <span class="icon">💬</span>
+                New Message
+            </h3>
+            <form method="POST" class="message-form">
+                {% csrf_token %}
+                <input type="text" name="message" placeholder="Type your message here..." required class="message-input" />
+                <button type="submit" class="send-btn">Send</button>
+            </form>
+        </div>
+
+        <div class="card" id="context-card">
+            <h3>
+                <span class="icon">🧭</span>
+                Conversation Context
+            </h3>
+            <div style="display:flex; gap: .5rem; align-items:center; margin-bottom:.75rem;">
+                <button class="btn" id="refresh-context">Refresh</button>
+                <span class="session-info" id="context-session" style="padding:.4rem .6rem;">Session: {{ session.id }}</span>
+            </div>
+            <div class="context-grid">
+                <div class="context-section">
+                    <h4>Summary</h4>
+                    <div id="summary-content" style="white-space:pre-wrap; background:#f7fafc; border:1px solid #e2e8f0; border-radius:12px; padding:.75rem; min-height:3rem;"></div>
+                </div>
+                <div class="context-section">
+                    <h4>Memory</h4>
+                    <div id="memory-content" style="background:#f7fafc; border:1px solid #e2e8f0; border-radius:12px; padding:.75rem; min-height:3rem;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card chat-container">
+            <h3>
+                <span class="icon">💬</span>
+                Conversation
+            </h3>
+            <div class="chat-box">
+                {% for m in messages %}
+                    <div class="chat-message {% if m.sender == 'user' %}user-chat{% else %}bot-chat{% endif %}">
+                        <div class="message-content">
+                            <div class="sender-name">{{ m.sender|title }}</div>
+                            <div class="message-text">{{ m.plaintext }}</div>
+                            {% if m.emotions %}
+                                <div class="message-emotions">
+                                    {% for emo in m.emotions|slice:":3" %}
+                                        <span class="emotion-pill">{{ emo.label }} {{ emo.score|floatformat:2 }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            <div class="message-time">{{ m.created_at }}</div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div class="empty-chat">
+                        <div class="empty-icon">🌟</div>
+                        <p>Start your conversation with Enoki!</p>
+                        <p class="empty-subtitle">Type a message below to begin chatting</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Wire the chat UI to /api/chat/ and /api/chat/context/ so you can test without reloading
+        document.addEventListener('DOMContentLoaded', function() {
+            const messageForm = document.querySelector('.message-form');
+            const messageInput = document.querySelector('.message-input');
+            const sendBtn = document.querySelector('.send-btn');
+            const chatBox = document.querySelector('.chat-box');
+            const toneSelect = document.getElementById('tone');
+            const languageSelect = document.getElementById('language');
+            const refreshBtn = document.getElementById('refresh-context');
+            const summaryEl = document.getElementById('summary-content');
+            const memoryEl = document.getElementById('memory-content');
+            const contextSession = document.getElementById('context-session');
+
+            function scrollToBottom() {
+                if (chatBox) chatBox.scrollTop = chatBox.scrollHeight;
+            }
+
+            function fmtTime(d = new Date()) {
+                return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+
+            function renderEmotions(emotions) {
+                if (!emotions || !emotions.length) return '';
+                return `<div class="message-emotions">${emotions.slice(0,3).map(e => `<span class="emotion-pill">${e.label} ${(e.score||0).toFixed(2)}</span>`).join('')}</div>`;
+            }
+
+            function appendMessage({ sender, text, emotions=null, timeStr=null }) {
+                const isUser = sender === 'user';
+                const wrapper = document.createElement('div');
+                wrapper.className = `chat-message ${isUser ? 'user-chat' : 'bot-chat'}`;
+                const content = document.createElement('div');
+                content.className = 'message-content';
+                content.innerHTML = `
+                    <div class="sender-name">${isUser ? 'User' : 'Enoki'}</div>
+                    <div class="message-text"></div>
+                    ${renderEmotions(emotions)}
+                    <div class="message-time">${timeStr || fmtTime()}</div>
+                `;
+                content.querySelector('.message-text').textContent = text;
+                wrapper.appendChild(content);
+                chatBox.appendChild(wrapper);
+                scrollToBottom();
+            }
+
+            function renderMemory(memory) {
+                if (!memory || typeof memory !== 'object') return '<em>No memory yet.</em>';
+                const parts = [];
+                if (memory.stressor) {
+                    parts.push(`<div class="row"><span class="key">Stressor:</span><span>${escapeHtml(memory.stressor)}</span></div>`);
+                }
+                if (memory.motivation) {
+                    parts.push(`<div class="row"><span class="key">Motivation:</span><span>${escapeHtml(memory.motivation)}</span></div>`);
+                }
+                if (Array.isArray(memory.coping) && memory.coping.length) {
+                    parts.push(`<div class="row"><span class="key">Coping:</span>${memory.coping.map(c => `<span class="pill">${escapeHtml(String(c))}</span>`).join('')}</div>`);
+                }
+                if (memory.trajectory) {
+                    parts.push(`<div class="row"><span class="key">Trajectory:</span><span>${escapeHtml(memory.trajectory)}</span></div>`);
+                }
+                if (Array.isArray(memory.bot_openings) && memory.bot_openings.length) {
+                    parts.push(`<div class="row"><span class="key">Recent openings:</span>${memory.bot_openings.slice(-5).map(c => `<span class="pill">${escapeHtml(String(c))}</span>`).join('')}</div>`);
+                }
+                return parts.length ? parts.join('') : '<em>No memory yet.</em>';
+            }
+
+            function escapeHtml(str) {
+                return String(str)
+                    .replaceAll('&', '&amp;')
+                    .replaceAll('<', '&lt;')
+                    .replaceAll('>', '&gt;');
+            }
+
+            async function fetchContext() {
+                try {
+                    const res = await fetch('/api/chat/context/', { credentials: 'same-origin' });
+                    const data = await res.json();
+                    if (data.error) throw new Error(data.error);
+                    if (contextSession) contextSession.textContent = `Session: ${data.session_id}`;
+                    if (summaryEl) summaryEl.textContent = data.summary || '';
+                    if (memoryEl) memoryEl.innerHTML = renderMemory(data.memory);
+                } catch (err) {
+                    if (summaryEl) summaryEl.textContent = `Context error: ${err.message}`;
+                }
+            }
+
+            async function sendMessage(text) {
+                if (!text || !text.trim()) return;
+                const payload = {
+                    message: text.trim(),
+                    tone: toneSelect ? toneSelect.value : undefined,
+                    language: languageSelect ? languageSelect.value : undefined,
+                };
+                try {
+                    sendBtn.disabled = true;
+                    sendBtn.textContent = 'Sending...';
+                    appendMessage({ sender: 'user', text: payload.message, emotions: null });
+                    const res = await fetch('/api/chat/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify(payload),
+                    });
+                    const data = await res.json();
+                    if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+
+                    // Show user emotions (from service) on the last user message bubble
+                    const lastUser = chatBox.querySelector('.chat-message.user-chat:last-of-type');
+                    if (lastUser && data.emotions && data.emotions.length) {
+                        const emoDiv = document.createElement('div');
+                        emoDiv.className = 'message-emotions';
+                        emoDiv.innerHTML = data.emotions.slice(0,3).map(e => `<span class='emotion-pill'>${e.label} ${(e.score||0).toFixed(2)}</span>`).join('');
+                        lastUser.querySelector('.message-content').appendChild(emoDiv);
+                    }
+
+                    appendMessage({ sender: 'bot', text: data.reply });
+                    // Update context panel
+                    if (summaryEl) summaryEl.textContent = data.summary || '';
+                    if (memoryEl) memoryEl.innerHTML = renderMemory(data.memory);
+                } catch (err) {
+                    appendMessage({ sender: 'bot', text: `Sorry, I hit an error: ${err.message}` });
+                } finally {
+                    sendBtn.disabled = false;
+                    sendBtn.textContent = 'Send';
+                    messageInput.value = '';
+                    messageInput.focus();
+                }
+            }
+
+            // Message form submit
+            messageForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                sendMessage(messageInput.value);
+            });
+
+            // Enter to send
+            messageInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage(messageInput.value);
+                }
+            });
+
+            // Refresh context button
+            if (refreshBtn) refreshBtn.addEventListener('click', function() {
+                fetchContext();
+            });
+
+            // Initial behaviors
+            scrollToBottom();
+            fetchContext();
+        });
+    </script>
+</body>
+</html>

@@ -16,11 +16,13 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from core.views import home, chat, api_chat
+from core.views import home, chat, api_chat, api_chat_history, api_chat_context
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', home, name='home'),
     path('chat/', chat, name='chat'),
     path('api/chat/', api_chat, name='api_chat'),
+    path('api/chat/history/', api_chat_history, name='api_chat_history'),
+    path('api/chat/context/', api_chat_context, name='api_chat_context'),
 ]
