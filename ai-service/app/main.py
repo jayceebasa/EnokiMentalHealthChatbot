@@ -103,6 +103,7 @@ NEG_EVENTS = [
     "fired", "divorce", "hospital", "overworked", "burned out", "printer", "jam", "cancellation", "error",
     "crash", "issue", "problem", "ticket", "fine"
 ]
+
 POS_EXAGG = [
     # original + expanded variants / hyperbolic cues
     "best day ever", "living the dream", "just what i needed", "absolutely perfect",

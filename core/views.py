@@ -46,7 +46,7 @@ def api_chat(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 def chat(request):
-    reply, emotions = None, []
+    reply, emotions, sarcasm, sarcasm_score = None, [], None, None
     user_message = ""
 
     if request.method == "POST":
@@ -55,7 +55,10 @@ def chat(request):
         # Step 1: classify emotions with RoBERTa
         payload = {"text": user_message}
         response = httpx.post(f"{AI_SERVICE_URL}/predict_all", json=payload)
-        emotions = response.json().get("emotions", [])
+        roberta_data = response.json()
+        emotions = roberta_data.get("emotions", [])
+        sarcasm = roberta_data.get("sarcasm", "not_sarcastic")
+        sarcasm_score = roberta_data.get("sarcasm_score", 0.0)
 
         # Step 2: hardcoded preferences for now (later we’ll use User/session)
         preferences = {"tone": "empathetic", "language": "en"}
@@ -67,4 +70,6 @@ def chat(request):
         "user_message": user_message,
         "emotions": emotions,
         "reply": reply,
+        "sarcasm": sarcasm,
+        "sarcasm_score": sarcasm_score,
     })
