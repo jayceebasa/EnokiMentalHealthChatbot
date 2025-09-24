@@ -16,8 +16,4 @@
       <li>{{ emo.label }} - {{ emo.score|floatformat:2 }}</li>
     {% endfor %}
   </ul>
-
-  <h4>Sarcasm detection:</h4>
-  <p><strong>Status:</strong> {{ sarcasm|default:"not_detected" }}</p>
-  <p><strong>Score:</strong> {{ sarcasm_score|floatformat:2|default:"0.00" }}</p>
 {% endif %}
