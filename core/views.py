@@ -1,4 +1,5 @@
-import os, httpx
+import os
+import httpx
 import json
 import uuid
 import logging
@@ -16,12 +17,15 @@ AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://127.0.0.1:8001")
 # Set up audit logging
 audit_logger = logging.getLogger('audit')
 
+
 def _check_consent(prefs):
     """Check if user has given data consent"""
     return getattr(prefs, 'data_consent', False)
 
+
 def home(request):
     return render(request, "home.html")
+
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -32,34 +36,39 @@ def api_chat(request):
         user_message = data.get('message', '')
         tone = data.get('tone')
         language = data.get('language')
-        consent_given = data.get('consent')  # Allow consent to be provided in request
-        
+        # Allow consent to be provided in request
+        consent_given = data.get('consent')
+
         if not user_message:
             return JsonResponse({'error': 'Message is required'}, status=400)
 
         # Get preferences (but don't create session yet - depends on consent)
         prefs = _get_or_create_preferences(request)
-        
+
         # Handle consent update if provided
         if consent_given is not None:
             prefs.data_consent = bool(consent_given)
             if consent_given:
                 prefs.consent_timestamp = timezone.now()
             prefs.save()
-            audit_logger.info(f"Consent updated: user_id={getattr(request.user, 'id', 'anon')}, consent={consent_given}")
+            audit_logger.info(
+                f"Consent updated: user_id={getattr(request.user, 'id', 'anon')}, consent={consent_given}")
 
         # Update preferences if provided
         updated = False
         if tone:
-            prefs.tone = tone[:32]; updated = True
+            prefs.tone = tone[:32]
+            updated = True
         if language:
-            prefs.language = language[:8]; updated = True
+            prefs.language = language[:8]
+            updated = True
         if updated:
             prefs.save()
 
         # Step 1: classify emotions with RoBERTa (no personal data stored here)
         payload = {"text": user_message}
-        response = httpx.post(f"{AI_SERVICE_URL}/predict_all", json=payload, timeout=30)
+        response = httpx.post(
+            f"{AI_SERVICE_URL}/predict_all", json=payload, timeout=30)
         roberta_data = response.json()
         emotions = roberta_data.get("emotions", [])
 
@@ -69,14 +78,14 @@ def api_chat(request):
         if not _check_consent(prefs):
             # NO CONSENT: Use session-only history (temporary, browser-only)
             session_history = request.session.get('temp_chat_history', [])
-            
+
             # Add current message to session (temporary storage)
             session_history.append({"role": "user", "text": user_message})
-            
+
             # Keep only last 10 messages in session to prevent bloat
             if len(session_history) > 10:
                 session_history = session_history[-10:]
-            
+
             # Generate reply with session-only context
             reply = generate_reply(
                 user_message,
@@ -86,13 +95,14 @@ def api_chat(request):
                 summary=None,  # No stored summary
                 memory=None,   # No stored memory
             )
-            
+
             # Add bot reply to session
             session_history.append({"role": "bot", "text": reply})
             request.session['temp_chat_history'] = session_history
-            
-            audit_logger.info(f"Ephemeral chat - no consent: message_length={len(user_message)}")
-            
+
+            audit_logger.info(
+                f"Ephemeral chat - no consent: message_length={len(user_message)}")
+
             return JsonResponse({
                 'user_message': user_message,
                 'emotions': emotions[:5],
@@ -107,24 +117,27 @@ def api_chat(request):
 
         # CONSENT GIVEN: Full database functionality
         session = _get_or_create_session(request)
-        
+
         # Check if we need to migrate session history to database
         session_history = request.session.get('temp_chat_history', [])
         if session_history:
             # Migrate previous ephemeral conversation to database
             with transaction.atomic():
                 for msg in session_history:
-                    m = Message(session=session, sender=msg['role'], text=msg['text'])
+                    m = Message(session=session,
+                                sender=msg['role'], text=msg['text'])
                     m.set_plaintext(msg['text'])
                     m.save()
                 # Clear session history after migration
                 del request.session['temp_chat_history']
-                audit_logger.info(f"Migrated ephemeral history to database: session_id={session.id}, messages={len(session_history)}")
+                audit_logger.info(
+                    f"Migrated ephemeral history to database: session_id={session.id}, messages={len(session_history)}")
 
         # Build prior history for continuity (last 12 messages)
         prior = list(session.messages.order_by('-created_at')[:12])
         prior_serialized = [
-            {"role": m.sender if m.sender in ("user", "bot") else "bot", "text": getattr(m, 'plaintext', m.text)}
+            {"role": m.sender if m.sender in (
+                "user", "bot") else "bot", "text": getattr(m, 'plaintext', m.text)}
             for m in reversed(prior)
         ]
 
@@ -140,30 +153,39 @@ def api_chat(request):
 
         # Persist to database
         with transaction.atomic():
-            m_user = Message(session=session, sender="user", text=user_message, emotions=emotions)
-            m_user.set_plaintext(user_message); m_user.save()
-            
-            audit_logger.info(f"Message stored: user_id={getattr(request.user, 'id', None)}, session_id={session.id}, action=create_user_message")
-            
+            m_user = Message(session=session, sender="user",
+                             text=user_message, emotions=emotions)
+            m_user.set_plaintext(user_message)
+            m_user.save()
+
+            audit_logger.info(
+                f"Message stored: user_id={getattr(request.user, 'id', None)}, session_id={session.id}, action=create_user_message")
+
             m_bot = Message(session=session, sender="bot", text=reply)
-            m_bot.set_plaintext(reply); m_bot.save()
-            
-            audit_logger.info(f"Message stored: user_id={getattr(request.user, 'id', None)}, session_id={session.id}, action=create_bot_message")
-            
+            m_bot.set_plaintext(reply)
+            m_bot.save()
+
+            audit_logger.info(
+                f"Message stored: user_id={getattr(request.user, 'id', None)}, session_id={session.id}, action=create_bot_message")
+
             # Update summary every 3 user messages (approx)
             user_msg_count = session.messages.filter(sender="user").count()
             # Update summary more frequently early on (first 6 user msgs), then every 3
             if user_msg_count <= 6 or user_msg_count % 3 == 0:
                 session.summary = update_summary(
                     session.summary,
-                    prior_serialized + [{"role":"user","text":user_message},{"role":"bot","text":reply}],
+                    prior_serialized +
+                    [{"role": "user", "text": user_message},
+                        {"role": "bot", "text": reply}],
                     user_message,
                     reply,
                 )
             # Always evolve structured memory
             session.memory = update_memory(
                 session.memory,
-                prior_serialized + [{"role":"user","text":user_message},{"role":"bot","text":reply}],
+                prior_serialized +
+                [{"role": "user", "text": user_message},
+                    {"role": "bot", "text": reply}],
                 user_message,
                 reply,
             )
@@ -204,6 +226,7 @@ def api_chat_history(request):
                 'text': getattr(m, 'plaintext', m.text),
                 'emotions': m.emotions,
                 'created_at': m.created_at.isoformat(),
+                +               'created_at': timezone.localtime(m.created_at).isoformat(),
             } for m in msgs
         ]
         return JsonResponse({
@@ -233,6 +256,7 @@ def api_chat_context(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+
 def _get_or_create_anon_id(request):
     if not request.session.get("anon_id"):
         request.session["anon_id"] = uuid.uuid4().hex[:32]
@@ -251,30 +275,34 @@ def _get_or_create_preferences(request):
 def _get_or_create_session(request):
     # Check if there's a current active session ID stored in the session
     current_session_id = request.session.get('current_chat_session_id')
-    
+
     if current_session_id:
         try:
             if request.user.is_authenticated:
-                session = ChatSession.objects.get(id=current_session_id, user=request.user)
+                session = ChatSession.objects.get(
+                    id=current_session_id, user=request.user)
             else:
                 anon_id = _get_or_create_anon_id(request)
-                session = ChatSession.objects.get(id=current_session_id, anon_id=anon_id)
+                session = ChatSession.objects.get(
+                    id=current_session_id, anon_id=anon_id)
             return session
         except ChatSession.DoesNotExist:
             # Current session doesn't exist anymore, remove from session
             del request.session['current_chat_session_id']
-    
+
     # No current session or it doesn't exist, get or create the most recent one
     if request.user.is_authenticated:
-        session = ChatSession.objects.filter(user=request.user).order_by("-created_at").first()
+        session = ChatSession.objects.filter(
+            user=request.user).order_by("-created_at").first()
         if not session:
             session = ChatSession.objects.create(user=request.user)
     else:
         anon_id = _get_or_create_anon_id(request)
-        session = ChatSession.objects.filter(anon_id=anon_id).order_by("-created_at").first()
+        session = ChatSession.objects.filter(
+            anon_id=anon_id).order_by("-created_at").first()
         if not session:
             session = ChatSession.objects.create(anon_id=anon_id)
-    
+
     # Store this session as the current active session
     request.session['current_chat_session_id'] = session.id
     return session
@@ -308,7 +336,8 @@ def chat(request):
         # Prepare lightweight history (exclude current). Use last 12 stored messages.
         prior = list(session.messages.order_by('-created_at')[:12])
         prior_serialized = [
-            {"role": m.sender if m.sender in ("user", "bot") else "bot", "text": getattr(m, 'plaintext', m.text)}
+            {"role": m.sender if m.sender in (
+                "user", "bot") else "bot", "text": getattr(m, 'plaintext', m.text)}
             for m in reversed(prior)
         ]
 
@@ -324,21 +353,29 @@ def chat(request):
 
         # Persist messages atomically
         with transaction.atomic():
-            m_user = Message(session=session, sender="user", text=user_message, emotions=emotions)
-            m_user.set_plaintext(user_message); m_user.save()
-            m_bot = Message(session=session, sender="bot", text=reply, emotions=None)
-            m_bot.set_plaintext(reply); m_bot.save()
+            m_user = Message(session=session, sender="user",
+                             text=user_message, emotions=emotions)
+            m_user.set_plaintext(user_message)
+            m_user.save()
+            m_bot = Message(session=session, sender="bot",
+                            text=reply, emotions=None)
+            m_bot.set_plaintext(reply)
+            m_bot.save()
             user_msg_count = session.messages.filter(sender="user").count()
             if user_msg_count <= 6 or user_msg_count % 3 == 0:
                 session.summary = update_summary(
                     session.summary,
-                    prior_serialized + [{"role":"user","text":user_message},{"role":"bot","text":reply}],
+                    prior_serialized +
+                    [{"role": "user", "text": user_message},
+                        {"role": "bot", "text": reply}],
                     user_message,
                     reply,
                 )
             session.memory = update_memory(
                 session.memory,
-                prior_serialized + [{"role":"user","text":user_message},{"role":"bot","text":reply}],
+                prior_serialized +
+                [{"role": "user", "text": user_message},
+                    {"role": "bot", "text": reply}],
                 user_message,
                 reply,
             )
@@ -366,17 +403,17 @@ def api_new_chat(request):
     """Create a new chat session, preserving the current one in history."""
     try:
         prefs = _get_or_create_preferences(request)
-        
+
         # Create new session
         if request.user.is_authenticated:
             new_session = ChatSession.objects.create(user=request.user)
         else:
             anon_id = _get_or_create_anon_id(request)
             new_session = ChatSession.objects.create(anon_id=anon_id)
-        
+
         # Set this new session as the current active session
         request.session['current_chat_session_id'] = new_session.id
-        
+
         return JsonResponse({
             'session_id': new_session.id,
             'message': 'New chat session created successfully'
@@ -391,32 +428,36 @@ def api_chat_sessions(request):
     """Get all chat sessions for the current user/anonymous user."""
     try:
         if request.user.is_authenticated:
-            sessions = ChatSession.objects.filter(user=request.user).order_by('-updated_at')
+            sessions = ChatSession.objects.filter(
+                user=request.user).order_by('-updated_at')
         else:
             anon_id = _get_or_create_anon_id(request)
-            sessions = ChatSession.objects.filter(anon_id=anon_id).order_by('-updated_at')
-        
+            sessions = ChatSession.objects.filter(
+                anon_id=anon_id).order_by('-updated_at')
+
         current_session = _get_or_create_session(request)
-        
+
         session_list = []
         for session in sessions:
             # Get first user message for preview
             first_message = session.messages.filter(sender='user').first()
-            preview = first_message.plaintext[:100] if first_message else "No messages yet"
-            
+            preview = first_message.plaintext[:
+                                              100] if first_message else "No messages yet"
+
             # Generate title from first message or use default
-            title = first_message.plaintext[:50] + "..." if first_message and len(first_message.plaintext) > 50 else (first_message.plaintext if first_message else "New Chat")
-            
+            title = first_message.plaintext[:50] + "..." if first_message and len(
+                first_message.plaintext) > 50 else (first_message.plaintext if first_message else "New Chat")
+
             session_list.append({
                 'id': session.id,
                 'title': title,
                 'preview': preview,
                 'message_count': session.messages.count(),
-                'created_at': session.created_at.isoformat(),
-                'updated_at': session.updated_at.isoformat(),
+                'created_at': timezone.localtime(session.created_at).isoformat(),
+                'updated_at': timezone.localtime(session.updated_at).isoformat(),
                 'is_current': session.id == current_session.id
             })
-        
+
         return JsonResponse({
             'sessions': session_list,
             'current_session_id': current_session.id
@@ -435,7 +476,7 @@ def api_chat_session_detail(request, session_id):
         else:
             anon_id = _get_or_create_anon_id(request)
             session = ChatSession.objects.get(id=session_id, anon_id=anon_id)
-        
+
         messages = session.messages.order_by('created_at')
         message_list = []
         for msg in messages:
@@ -443,16 +484,17 @@ def api_chat_session_detail(request, session_id):
                 'sender': msg.sender,
                 'text': getattr(msg, 'plaintext', msg.text),
                 'emotions': msg.emotions,
-                'created_at': msg.created_at.isoformat()
+                'created_at': timezone.localtime(msg.created_at).isoformat(),
+
             })
-        
+
         return JsonResponse({
             'session_id': session.id,
             'messages': message_list,
             'summary': session.summary,
             'memory': session.memory,
-            'created_at': session.created_at.isoformat(),
-            'updated_at': session.updated_at.isoformat()
+            'created_at': timezone.localtime(session.created_at).isoformat(),
+            'updated_at': timezone.localtime(session.updated_at).isoformat()
         })
     except ChatSession.DoesNotExist:
         return JsonResponse({'error': 'Chat session not found'}, status=404)
@@ -470,10 +512,10 @@ def api_switch_session(request, session_id):
         else:
             anon_id = _get_or_create_anon_id(request)
             session = ChatSession.objects.get(id=session_id, anon_id=anon_id)
-        
+
         # Set this session as the current active session
         request.session['current_chat_session_id'] = session.id
-        
+
         return JsonResponse({
             'session_id': session.id,
             'message': 'Successfully switched to chat session'
@@ -506,30 +548,32 @@ def api_consent(request):
     try:
         data = json.loads(request.body)
         consent_given = data.get('consent', False)
-        
+
         prefs = _get_or_create_preferences(request)
         old_consent = prefs.data_consent
         prefs.data_consent = bool(consent_given)
-        
+
         if consent_given:
             prefs.consent_timestamp = timezone.now()
         prefs.save()
-        
-        audit_logger.info(f"Consent managed: user_id={getattr(request.user, 'id', 'anon')}, old_consent={old_consent}, new_consent={consent_given}")
-        
+
+        audit_logger.info(
+            f"Consent managed: user_id={getattr(request.user, 'id', 'anon')}, old_consent={old_consent}, new_consent={consent_given}")
+
         # If consent was revoked, optionally clear ephemeral session data
         if old_consent and not consent_given:
             if 'temp_chat_history' in request.session:
                 del request.session['temp_chat_history']
-            audit_logger.info(f"Consent revoked - cleared ephemeral session data")
-        
+            audit_logger.info(
+                f"Consent revoked - cleared ephemeral session data")
+
         return JsonResponse({
             'message': 'Consent updated successfully',
             'consent_status': prefs.data_consent,
             'consent_timestamp': prefs.consent_timestamp.isoformat() if prefs.consent_timestamp else None,
             'has_ephemeral_data': 'temp_chat_history' in request.session
         })
-        
+
     except Exception as e:
         audit_logger.error(f"Consent management error: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
@@ -541,7 +585,7 @@ def api_consent_status(request):
     """Get current consent status"""
     try:
         prefs = _get_or_create_preferences(request)
-        
+
         return JsonResponse({
             'consent_status': getattr(prefs, 'data_consent', False),
             'consent_timestamp': prefs.consent_timestamp.isoformat() if getattr(prefs, 'consent_timestamp', None) else None,
@@ -549,6 +593,6 @@ def api_consent_status(request):
             'has_ephemeral_data': 'temp_chat_history' in request.session,
             'ephemeral_message_count': len(request.session.get('temp_chat_history', []))
         })
-        
+
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)

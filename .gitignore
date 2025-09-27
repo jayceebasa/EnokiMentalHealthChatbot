@@ -168,3 +168,4 @@ Thumbs.db
 .pypirc
 .cursorignore
 .cursorindexingignore
+.env.local
