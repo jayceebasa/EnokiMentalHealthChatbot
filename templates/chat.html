@@ -1444,8 +1444,28 @@
                     const res = await fetch('/api/chat/context/', { credentials: 'same-origin' });
                     const data = await res.json();
                     if (data.error) throw new Error(data.error);
+                    
+                    // Update context panel
                     if (summaryEl) summaryEl.textContent = data.summary || '';
                     if (memoryEl) memoryEl.innerHTML = renderMemory(data.memory);
+                    
+                    // Load ephemeral chat history if available (no consent mode)
+                    if (data.ephemeral_history && Array.isArray(data.ephemeral_history) && data.ephemeral_history.length > 0) {
+                        console.log('Loading ephemeral chat history:', data.ephemeral_history.length, 'messages');
+                        
+                        // Clear any existing intro message
+                        clearIntroMessage();
+                        
+                        // Render ephemeral chat history
+                        data.ephemeral_history.forEach(msg => {
+                            appendMessage({
+                                sender: msg.role === 'user' ? 'user' : 'bot',
+                                text: msg.text,
+                                emotions: null,
+                                timeStr: null // No timestamps for ephemeral messages
+                            });
+                        });
+                    }
                 } catch (err) {
                     if (summaryEl) summaryEl.textContent = `Context error: ${err.message}`;
                 }

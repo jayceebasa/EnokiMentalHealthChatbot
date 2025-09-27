@@ -1,4 +1,5 @@
 import os
+import hashlib
 import google.generativeai as genai
 from typing import List, Optional, Dict, Any
 
@@ -10,8 +11,43 @@ CONVERSATION_FLOW_GUIDES = [
     "let your response emerge naturally from what they're experiencing"
 ]
 
+# Pre-compile commonly used word lists for faster lookups
+GRIEF_INDICATORS = frozenset(["died", "passed", "funeral", "miss", "pet", "dog", "cat", "tiger", "rainbow bridge"])
+RISK_INDICATORS = frozenset(["end my life", "kill myself", "suicide", "self harm", "join them"])
+CRISIS_WORDS = frozenset(["suicide", "kill myself", "end my life", "self harm", "join them", "be with them"])
+GRIEF_WORDS = frozenset(["died", "passed", "funeral", "miss them", "rainbow bridge", "pet", "dog", "cat"])
+HIGH_DISTRESS_EMOTIONS = frozenset(['sadness', 'grief', 'despair', 'anxiety', 'fear'])
+GREETINGS = [
+    "Hey! How's your day going?",
+    "Hi there! How are you feeling today?",
+    "Hello! What's been on your mind lately?",
+    "Hey there! How are things?",
+    "Hi! How's everything with you?"
+]
+SARCASTIC_PHRASES = frozenset([
+    "oh great", "just great", "fantastic", "wonderful", "perfect",
+    "exactly what i needed", "just what i wanted", "how lovely",
+    "oh joy", "thrilling", "amazing", "brilliant", "awesome"
+])
+
+# Pre-compile text replacements for faster processing
+CLINICAL_REPLACEMENTS = {
+    "coping strategies": "things that help",
+    "stressor": "what's been hard", 
+    "emotional trajectory": "how you've been feeling",
+    "validated": "heard",
+    "processing": "working through"
+}
+
+NATURAL_FLOW_REPLACEMENTS = {
+    "It sounds like ": "",
+    "That sounds ": "",
+    "It seems like ": "",
+    "I'm sorry to hear ": ""
+}
+
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-1.5-flash")
+model = genai.GenerativeModel("gemini-2.5-flash")
 
 
 def generate_reply(
@@ -22,51 +58,46 @@ def generate_reply(
     summary: Optional[str] = None,
     memory: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """Generate a more natural, conversational reply with organic flow."""
+    """Generate a more natural, conversational reply with organic flow.
+    
+    IMPORTANT: This function should only receive data from the current chat session.
+    The 'history' parameter must contain ONLY messages from the active session,
+    not from other users or sessions. Session isolation is enforced in views.py.
+    """
 
+    # Early preprocessing - do string operations once
+    user_lower = (user_text or "").lower()
+    
     history = history or []
     # Keep more recent context for better continuity
     recent_history = history[-12:]
 
-    # Build conversational context more naturally
-    context_lines = []
-    for h in recent_history:
-        speaker = "You" if h.get("role") == "user" else "Me"
-        text = h.get("text", "").strip()
-        if text:
-            context_lines.append(f"{speaker}: {text}")
+    # Optimized conversational context building
+    context_lines = [
+        f"{'You' if h.get('role') == 'user' else 'Me'}: {h.get('text', '').strip()}"
+        for h in recent_history 
+        if h.get('text', '').strip()
+    ]
+    conversation_flow = "\n".join(context_lines) if context_lines else "This is our first exchange"
 
-    conversation_flow = "\n".join(
-        context_lines) if context_lines else "This is our first exchange"
-
-    # Simplify emotion processing
-    main_emotions = []
-    for e in emotions[:3]:  # Focus on top emotions only
-        if e.get('score', 0) > 0.3:
-            main_emotions.append(e.get('label', ''))
+    # Optimized emotion processing using list comprehension
+    main_emotions = [e.get('label', '') for e in emotions[:3] if e.get('score', 0) > 0.3]
     emotion_context = ", ".join(main_emotions) if main_emotions else "neutral"
 
     # Extract key context more organically
     memory = memory or {}
-    what_matters = memory.get("stressor") or memory.get(
-        "motivation") or "what you're dealing with"
+    what_matters = memory.get("stressor") or memory.get("motivation") or "what you're dealing with"
     helpful_things = memory.get("coping", [])
 
     tone = preferences.get("tone", "empathetic")
     language = preferences.get("language", "en")
 
+    # Optimized pattern detection using pre-compiled sets
+    has_grief = any(word in user_lower for word in GRIEF_INDICATORS)
+    has_risk = any(word in user_lower for word in RISK_INDICATORS)
+
     # Simplified mock response for testing
     if os.getenv("FAKE_LLM", "0") == "1":
-        user_lower = (user_text or "").lower()
-
-        # Handle grief/loss with natural compassion
-        grief_indicators = ["died", "passed", "funeral", "miss",
-                            "pet", "dog", "cat", "tiger", "rainbow bridge"]
-        risk_indicators = ["end my life", "kill myself",
-                           "suicide", "self harm", "join them"]
-
-        has_grief = any(word in user_lower for word in grief_indicators)
-        has_risk = any(word in user_lower for word in risk_indicators)
 
         if has_risk or has_grief:
             pet_name = "Tiger" if "tiger" in user_lower else "them"
@@ -75,19 +106,10 @@ def generate_reply(
                     f"If you're having thoughts of hurting yourself, please reach out to someone close to you or a crisis line. "
                     f"That pain you're feeling? It shows how much you loved. I'm here.")
 
-        # Simple greetings get natural responses
+        # Simple greetings get natural responses - optimized with pre-computed hash
         if any(greeting in user_lower for greeting in ["hi there", "hello", "hi", "hey", "what's up", "whats up"]):
-            greetings = [
-                "Hey! How's your day going?",
-                "Hi there! How are you feeling today?",
-                "Hello! What's been on your mind lately?",
-                "Hey there! How are things?",
-                "Hi! How's everything with you?"
-            ]
-            # Simple way to vary responses consistently
-            import hashlib
             hash_val = int(hashlib.md5(user_text.encode()).hexdigest(), 16)
-            return greetings[hash_val % len(greetings)]
+            return GREETINGS[hash_val % len(GREETINGS)]
             if "great" in user_lower or "perfect" in user_lower:
                 return "Yeah, I can hear the frustration in that. Things really aren't going well right now, are they?"
             elif "fantastic" in user_lower or "wonderful" in user_lower:
@@ -116,74 +138,50 @@ def generate_reply(
         if any(word in user_lower for word in ["wtf", "i just told you", "i've been telling you"]):
             return "You're absolutely right - you did just tell me about school being overwhelming and failing subjects. Sorry I missed that. That kind of academic pressure must feel crushing."
 
-    # Check for emotional intensity
+    # Optimized emotional intensity check
     is_high_distress = any(
-        (e.get('label', '').lower() in [
-         'sadness', 'grief', 'despair', 'anxiety', 'fear'])
-        and (e.get('score', 0) >= 0.35)
+        e.get('label', '').lower() in HIGH_DISTRESS_EMOTIONS and e.get('score', 0) >= 0.35
         for e in emotions
     )
 
-    # Detect crisis/grief situations and sarcasm
-    user_lower = (user_text or "").lower()
-    crisis_words = ["suicide", "kill myself", "end my life",
-                    "self harm", "join them", "be with them"]
-    grief_words = ["died", "passed", "funeral",
-                   "miss them", "rainbow bridge", "pet", "dog", "cat"]
+    # Optimized crisis/grief detection using pre-compiled sets
+    has_crisis_risk = any(word in user_lower for word in CRISIS_WORDS)
+    has_grief_context = any(word in user_lower for word in GRIEF_WORDS)
 
-    has_crisis_risk = any(word in user_lower for word in crisis_words)
-    has_grief = any(word in user_lower for word in grief_words)
-
-    # Detect sarcasm patterns
-    def detect_sarcasm(text: str) -> bool:
-        text_lower = text.lower()
-
-        # Sarcastic phrases
-        sarcastic_phrases = [
-            "oh great", "just great", "fantastic", "wonderful", "perfect",
-            "exactly what i needed", "just what i wanted", "how lovely",
-            "oh joy", "thrilling", "amazing", "brilliant", "awesome"
-        ]
-
-        # Context clues that suggest sarcasm
-        sarcasm_contexts = [
-            ("great", ["fail", "flunk", "kick",
-             "fire", "broke", "sick", "tired"]),
-            ("perfect", ["mess", "disaster",
-             "wrong", "bad", "awful", "terrible"]),
-            ("fantastic", ["fail", "problem", "issue", "stress", "worry"]),
-            ("wonderful", ["sick", "hurt", "pain", "sad", "angry", "upset"]),
-            ("amazing", ["fail", "broke", "lost", "fired", "dump"])
-        ]
-
-        # Check for obvious sarcastic phrases
-        if any(phrase in text_lower for phrase in sarcastic_phrases):
-            # Look for negative context to confirm sarcasm
-            negative_words = ["not", "cant", "can't", "won't", "wont", "never", "no",
-                              "fail", "bad", "awful", "terrible", "hate", "suck", "worst"]
-            if any(neg in text_lower for neg in negative_words):
-                return True
-
-        # Check contextual sarcasm patterns
-        for positive_word, negative_contexts in sarcasm_contexts:
-            if positive_word in text_lower:
-                if any(context in text_lower for context in negative_contexts):
-                    return True
-
-        # Check for excessive positivity with negative emotions
-        if any(e.get('label', '').lower() in ['sadness', 'anger', 'disappointment', 'annoyance']
-               and e.get('score', 0) > 0.6 for e in emotions):
-            positive_words = ["great", "perfect",
-                              "wonderful", "fantastic", "amazing", "awesome"]
-            if any(word in text_lower for word in positive_words):
-                return True
-
-        return False
-
-    has_sarcasm = detect_sarcasm(user_text or "")
+    # Optimized sarcasm detection - inline for better performance
+    has_sarcasm = False
+    
+    # Quick sarcasm check - only run if we find potential sarcastic phrases
+    if any(phrase in user_lower for phrase in SARCASTIC_PHRASES):
+        # Look for negative context to confirm sarcasm
+        negative_words = frozenset(["not", "cant", "can't", "won't", "wont", "never", "no",
+                                   "fail", "bad", "awful", "terrible", "hate", "suck", "worst"])
+        if any(neg in user_lower for neg in negative_words):
+            has_sarcasm = True
+        else:
+            # Quick contextual sarcasm patterns check
+            sarcasm_contexts = [
+                ("great", frozenset(["fail", "flunk", "kick", "fire", "broke", "sick", "tired"])),
+                ("perfect", frozenset(["mess", "disaster", "wrong", "bad", "awful", "terrible"])),
+                ("fantastic", frozenset(["fail", "problem", "issue", "stress", "worry"])),
+                ("wonderful", frozenset(["sick", "hurt", "pain", "sad", "angry", "upset"])),
+                ("amazing", frozenset(["fail", "broke", "lost", "fired", "dump"]))
+            ]
+            
+            for positive_word, negative_contexts in sarcasm_contexts:
+                if positive_word in user_lower and any(context in user_lower for context in negative_contexts):
+                    has_sarcasm = True
+                    break
+    
+    # Check for excessive positivity with negative emotions (only if not already detected)
+    if not has_sarcasm:
+        negative_emotion_labels = frozenset(['sadness', 'anger', 'disappointment', 'annoyance'])
+        if any(e.get('label', '').lower() in negative_emotion_labels and e.get('score', 0) > 0.6 for e in emotions):
+            positive_words = frozenset(["great", "perfect", "wonderful", "fantastic", "amazing", "awesome"])
+            has_sarcasm = any(word in user_lower for word in positive_words)
 
     # Adjust response style based on situation
-    if has_crisis_risk or has_grief or is_high_distress:
+    if has_crisis_risk or has_grief_context or is_high_distress:
         response_style = "deep_presence"
         target_length = "120-180 words"
     else:
@@ -223,70 +221,42 @@ Read their message carefully and respond to what they actually said:"""
             raise Exception("Empty response from model")
 
     except Exception as e:
-        # Create contextual fallback responses based on conversation history and current input
-        user_lower = (user_text or "").lower()
-
-        # Check if user is frustrated with repetitive responses
-        frustration_words = ["wtf", "hello?",
-                             "i just told you", "i've been telling you"]
+        # Optimized fallback responses using pre-compiled patterns
+        frustration_words = frozenset(["wtf", "hello?", "i just told you", "i've been telling you"])
+        
         if any(word in user_lower for word in frustration_words):
             reply_text = "Sorry, I'm having trouble keeping up with our conversation right now. You mentioned school being really tough and failing subjects - that must be incredibly stressful."
-
-        # Handle sarcasm in fallback responses
         elif has_sarcasm:
             reply_text = "I can hear the frustration behind that. Things really aren't going your way right now, are they?"
-
-        # Context-aware fallbacks based on what they actually said
         elif "school" in user_lower and ("kicked out" in user_lower or "flunk" in user_lower):
             reply_text = "Getting kicked out of school feels like the end of the world right now. But there are other paths forward, even when you can't see them. How are you holding up?"
-
         elif "sad" in user_lower or "alone" in user_lower:
             reply_text = "Sadness and loneliness can feel so overwhelming. You're not alone right now though - I'm here with you."
-
         elif has_crisis_risk:
             reply_text = "I can hear how much pain you're in right now. Please reach out to someone you trust or a crisis line - you don't have to face this alone."
-
-        elif has_grief:
+        elif has_grief_context:
             reply_text = "Losing someone you love that much - the pain is just enormous. Take it one breath at a time."
-
-        elif "hi" in user_lower or "hello" in user_lower or "what's up" in user_lower:
-            # More natural, casual greetings
-            greetings = [
+        elif any(greeting in user_lower for greeting in ["hi", "hello", "what's up"]):
+            # Optimized greeting response using pre-computed hash
+            fallback_greetings = [
                 "Hey there! How's it going?",
-                "Hi! How are you doing today?",
+                "Hi! How are you doing today?", 
                 "Hey! What's on your mind?",
                 "Hello! How are things with you?",
                 "Hi there! How's your day been?"
             ]
-            # Pick greeting based on simple hash for consistency
-            import hashlib
-            hash_val = int(hashlib.md5(
-                (user_text or "").encode()).hexdigest(), 16)
-            reply_text = greetings[hash_val % len(greetings)]
-
+            hash_val = int(hashlib.md5(user_text.encode()).hexdigest(), 16)
+            reply_text = fallback_greetings[hash_val % len(fallback_greetings)]
         elif user_lower.strip() == "nothing much":
             reply_text = "Fair enough. Sometimes there's not much to say, and that's okay too."
-
         else:
-            # Last resort - but make it acknowledge we might be missing context
             reply_text = "I'm here and listening. Could you help me understand what's on your mind?"
 
-    # Light post-processing to ensure natural flow
-    reply_text = reply_text.replace("It sounds like ", "")
-    reply_text = reply_text.replace("That sounds ", "")
-    reply_text = reply_text.replace("It seems like ", "")
-    reply_text = reply_text.replace("I'm sorry to hear ", "")
-
-    # Remove overly clinical language
-    clinical_replacements = {
-        "coping strategies": "things that help",
-        "stressor": "what's been hard",
-        "emotional trajectory": "how you've been feeling",
-        "validated": "heard",
-        "processing": "working through"
-    }
-
-    for clinical, natural in clinical_replacements.items():
+    # Optimized post-processing using pre-compiled replacements
+    for old_text, new_text in NATURAL_FLOW_REPLACEMENTS.items():
+        reply_text = reply_text.replace(old_text, new_text)
+    
+    for clinical, natural in CLINICAL_REPLACEMENTS.items():
         reply_text = reply_text.replace(clinical, natural)
 
     return reply_text.strip()
@@ -331,59 +301,63 @@ Make it conversational, not clinical."""
         return existing_summary or "Ongoing supportive conversation"
 
 
+# Pre-compile keyword sets for memory update performance
+WORK_KEYWORDS = frozenset(["work", "job", "boss", "shift", "overtime"])
+SCHOOL_KEYWORDS = frozenset(["school", "study", "exam", "grade"])
+FAMILY_KEYWORDS = frozenset(["family", "parent", "sibling", "relationship"])
+FAMILY_MOTIVATION_KEYWORDS = frozenset(["family", "kids", "children"])
+OVERWHELMED_KEYWORDS = frozenset(["exhausted", "drained", "overwhelmed"])
+IMPROVING_KEYWORDS = frozenset(["better", "helping", "improving"])
+
+COPING_KEYWORDS = {
+    "breathing": "breathing exercises",
+    "bath": "taking baths", 
+    "music": "listening to music",
+    "walk": "going for walks",
+    "tea": "having tea",
+    "read": "reading",
+    "meditation": "meditation",
+    "exercise": "exercise"
+}
+
 def update_memory(existing: Optional[Dict[str, Any]], history: List[dict], latest_user: str, latest_bot: str) -> Dict[str, Any]:
-    """Update memory with a more natural approach."""
+    """Update memory with a more natural approach - optimized for performance."""
 
     existing = existing or {}
 
-    # Combine recent text for analysis
-    all_text = " ".join([
-        item['text'] for item in history[-8:] if item['text']
-    ] + [latest_user, latest_bot])
+    # Optimized text combination
+    text_parts = [item['text'] for item in history[-8:] if item.get('text')]
+    text_parts.extend([latest_user, latest_bot])
+    text_lower = " ".join(text_parts).lower()
 
-    text_lower = all_text.lower()
-
-    # Natural keyword detection for main concerns
+    # Optimized keyword detection using pre-compiled sets
     if not existing.get("stressor"):
-        if any(word in text_lower for word in ["work", "job", "boss", "shift", "overtime"]):
+        if any(word in text_lower for word in WORK_KEYWORDS):
             existing["stressor"] = "work stress"
-        elif any(word in text_lower for word in ["school", "study", "exam", "grade"]):
+        elif any(word in text_lower for word in SCHOOL_KEYWORDS):
             existing["stressor"] = "academic pressure"
-        elif any(word in text_lower for word in ["family", "parent", "sibling", "relationship"]):
+        elif any(word in text_lower for word in FAMILY_KEYWORDS):
             existing["stressor"] = "family situation"
 
-    # Natural motivation detection
+    # Optimized motivation detection
     if not existing.get("motivation"):
         if "tuition" in text_lower and ("sister" in text_lower or "sibling" in text_lower):
             existing["motivation"] = "helping with family education"
-        elif any(word in text_lower for word in ["family", "kids", "children"]):
+        elif any(word in text_lower for word in FAMILY_MOTIVATION_KEYWORDS):
             existing["motivation"] = "taking care of family"
 
-    # Helpful things they mention
+    # Optimized coping items detection
     coping_items = set(existing.get("coping", []))
-
-    coping_keywords = {
-        "breathing": "breathing exercises",
-        "bath": "taking baths",
-        "music": "listening to music",
-        "walk": "going for walks",
-        "tea": "having tea",
-        "read": "reading",
-        "meditation": "meditation",
-        "exercise": "exercise"
-    }
-
-    for keyword, activity in coping_keywords.items():
+    for keyword, activity in COPING_KEYWORDS.items():
         if keyword in text_lower:
             coping_items.add(activity)
-
     existing["coping"] = list(coping_items)[:8]  # Keep it manageable
 
-    # How they've been feeling overall
+    # Optimized trajectory detection
     if not existing.get("trajectory"):
-        if any(word in text_lower for word in ["exhausted", "drained", "overwhelmed"]):
+        if any(word in text_lower for word in OVERWHELMED_KEYWORDS):
             existing["trajectory"] = "feeling overwhelmed and drained"
-        elif any(word in text_lower for word in ["better", "helping", "improving"]):
+        elif any(word in text_lower for word in IMPROVING_KEYWORDS):
             existing["trajectory"] = "working on feeling better"
 
     return existing

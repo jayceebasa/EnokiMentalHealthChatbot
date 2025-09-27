@@ -117,6 +117,9 @@ def api_chat(request):
 
         # CONSENT GIVEN: Full database functionality
         session = _get_or_create_session(request)
+        
+        # Validate session ownership for security
+        _validate_session_ownership(session, request)
 
         # Check if we need to migrate session history to database
         session_history = request.session.get('temp_chat_history', [])
@@ -133,22 +136,32 @@ def api_chat(request):
                 audit_logger.info(
                     f"Migrated ephemeral history to database: session_id={session.id}, messages={len(session_history)}")
 
-        # Build prior history for continuity (last 12 messages)
-        prior = list(session.messages.order_by('-created_at')[:12])
+        # Build prior history for continuity (last 12 messages from THIS SESSION ONLY)
+        # Double-check session ownership for security
+        if request.user.is_authenticated:
+            prior = list(session.messages.filter(
+                session__user=request.user
+            ).order_by('-created_at')[:12])
+        else:
+            anon_id = _get_or_create_anon_id(request)
+            prior = list(session.messages.filter(
+                session__anon_id=anon_id
+            ).order_by('-created_at')[:12])
+        
         prior_serialized = [
             {"role": m.sender if m.sender in (
                 "user", "bot") else "bot", "text": getattr(m, 'plaintext', m.text)}
             for m in reversed(prior)
         ]
 
-        # Generate reply with full context
+        # Generate reply with full context - ONLY from current session
         reply = generate_reply(
             user_message,
             emotions,
             preferences,
-            history=prior_serialized,
-            summary=session.summary,
-            memory=session.memory,
+            history=prior_serialized,  # Guaranteed to be from current session only
+            summary=session.summary,   # Session-specific summary
+            memory=session.memory,     # Session-specific memory
         )
 
         # Persist to database
@@ -210,7 +223,7 @@ def api_chat(request):
 @csrf_exempt
 @require_http_methods(["GET"])
 def api_chat_history(request):
-    """Return the last N messages (default 50) for the current session.
+    """Return the last N messages (default 50) for the current session ONLY.
     Works for both authenticated and anonymous users.
     """
     try:
@@ -218,15 +231,28 @@ def api_chat_history(request):
         limit = max(1, min(limit, 200))  # clamp
         prefs = _get_or_create_preferences(request)
         session = _get_or_create_session(request)
-        msgs = session.messages.order_by('-created_at')[:limit]
+        
+        # Validate session ownership for security
+        _validate_session_ownership(session, request)
+        
+        # Ensure we only get messages from THIS session and user/anon_id
+        if request.user.is_authenticated:
+            msgs = session.messages.filter(
+                session__user=request.user
+            ).order_by('-created_at')[:limit]
+        else:
+            anon_id = _get_or_create_anon_id(request)
+            msgs = session.messages.filter(
+                session__anon_id=anon_id
+            ).order_by('-created_at')[:limit]
+        
         serialized = [
             {
                 'id': m.id,
                 'sender': m.sender,
                 'text': getattr(m, 'plaintext', m.text),
                 'emotions': m.emotions,
-                'created_at': m.created_at.isoformat(),
-                +               'created_at': timezone.localtime(m.created_at).isoformat(),
+                'created_at': timezone.localtime(m.created_at).isoformat(),
             } for m in msgs
         ]
         return JsonResponse({
@@ -243,15 +269,50 @@ def api_chat_history(request):
 @csrf_exempt
 @require_http_methods(["GET"])
 def api_chat_context(request):
-    """Return just summary + memory + preferences for current session (debug / lightweight)."""
+    """Return context and chat history - works for both consent/ephemeral modes."""
     try:
         prefs = _get_or_create_preferences(request)
+        
+        # Check consent status to determine what to return
+        if not _check_consent(prefs):
+            # NO CONSENT: Return ephemeral session history
+            session_history = request.session.get('temp_chat_history', [])
+            return JsonResponse({
+                'session_id': None,
+                'summary': None,
+                'memory': None,
+                'preferences': {'tone': prefs.tone, 'language': prefs.language},
+                'ephemeral_history': session_history,  # Return ephemeral chat history
+                'consent_required': True,
+            })
+        
+        # CONSENT GIVEN: Return full database context
         session = _get_or_create_session(request)
+        _validate_session_ownership(session, request)
+        
         return JsonResponse({
             'session_id': session.id,
             'summary': session.summary,
             'memory': session.memory,
             'preferences': {'tone': prefs.tone, 'language': prefs.language},
+            'consent_required': False,
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt  
+@require_http_methods(["POST"])
+def api_clear_ephemeral_chat(request):
+    """Clear ephemeral chat history stored in session."""
+    try:
+        if 'temp_chat_history' in request.session:
+            del request.session['temp_chat_history']
+            audit_logger.info("Ephemeral chat history cleared")
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Ephemeral chat history cleared'
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
@@ -261,6 +322,20 @@ def _get_or_create_anon_id(request):
     if not request.session.get("anon_id"):
         request.session["anon_id"] = uuid.uuid4().hex[:32]
     return request.session["anon_id"]
+
+
+def _validate_session_ownership(session, request):
+    """Validate that the session belongs to the current user/anon_id.
+    This ensures session isolation and prevents cross-session data leakage.
+    """
+    if request.user.is_authenticated:
+        if session.user != request.user:
+            raise ValueError(f"Session {session.id} does not belong to authenticated user {request.user.id}")
+    else:
+        anon_id = _get_or_create_anon_id(request)
+        if session.anon_id != anon_id:
+            raise ValueError(f"Session {session.id} does not belong to anonymous user {anon_id}")
+    return True
 
 
 def _get_or_create_preferences(request):
@@ -273,6 +348,7 @@ def _get_or_create_preferences(request):
 
 
 def _get_or_create_session(request):
+    """Get or create a chat session for the current user, ensuring proper isolation."""
     # Check if there's a current active session ID stored in the session
     current_session_id = request.session.get('current_chat_session_id')
 
@@ -285,10 +361,14 @@ def _get_or_create_session(request):
                 anon_id = _get_or_create_anon_id(request)
                 session = ChatSession.objects.get(
                     id=current_session_id, anon_id=anon_id)
+            
+            # Validate session ownership for extra security
+            _validate_session_ownership(session, request)
             return session
-        except ChatSession.DoesNotExist:
-            # Current session doesn't exist anymore, remove from session
-            del request.session['current_chat_session_id']
+        except (ChatSession.DoesNotExist, ValueError):
+            # Current session doesn't exist or doesn't belong to user, remove from session
+            if 'current_chat_session_id' in request.session:
+                del request.session['current_chat_session_id']
 
     # No current session or it doesn't exist, get or create the most recent one
     if request.user.is_authenticated:
@@ -303,6 +383,9 @@ def _get_or_create_session(request):
         if not session:
             session = ChatSession.objects.create(anon_id=anon_id)
 
+    # Validate session ownership before returning
+    _validate_session_ownership(session, request)
+    
     # Store this session as the current active session
     request.session['current_chat_session_id'] = session.id
     return session
@@ -311,6 +394,9 @@ def _get_or_create_session(request):
 def chat(request):
     prefs = _get_or_create_preferences(request)
     session = _get_or_create_session(request)
+    
+    # Validate session ownership for security
+    _validate_session_ownership(session, request)
 
     # Allow updating preferences (tone / language) via form
     if request.method == "POST" and request.POST.get("update_prefs"):
@@ -333,21 +419,31 @@ def chat(request):
 
         preferences = {"tone": prefs.tone, "language": prefs.language}
 
-        # Prepare lightweight history (exclude current). Use last 12 stored messages.
-        prior = list(session.messages.order_by('-created_at')[:12])
+        # Prepare lightweight history (exclude current). Use last 12 stored messages from THIS SESSION ONLY
+        # Ensure session ownership for security
+        if request.user.is_authenticated:
+            prior = list(session.messages.filter(
+                session__user=request.user
+            ).order_by('-created_at')[:12])
+        else:
+            anon_id = _get_or_create_anon_id(request)
+            prior = list(session.messages.filter(
+                session__anon_id=anon_id
+            ).order_by('-created_at')[:12])
+        
         prior_serialized = [
             {"role": m.sender if m.sender in (
                 "user", "bot") else "bot", "text": getattr(m, 'plaintext', m.text)}
             for m in reversed(prior)
         ]
 
-        # Step 3: generate a reply with Gemini using history + summary
+        # Step 3: generate a reply with Gemini using history + summary - ONLY from current session
         reply = generate_reply(
             user_message,
             emotions,
             preferences,
-            history=prior_serialized,
-            summary=session.summary,
+            history=prior_serialized,  # Guaranteed to be from current session only
+            summary=session.summary,   # Session-specific summary
             memory=session.memory,
         )
 
@@ -404,7 +500,20 @@ def api_new_chat(request):
     try:
         prefs = _get_or_create_preferences(request)
 
-        # Create new session
+        # Check consent status to handle ephemeral vs persistent sessions
+        if not _check_consent(prefs):
+            # NO CONSENT: Clear ephemeral history for new chat
+            if 'temp_chat_history' in request.session:
+                del request.session['temp_chat_history']
+                audit_logger.info("Ephemeral chat history cleared for new chat")
+            
+            return JsonResponse({
+                'session_id': None,
+                'message': 'New ephemeral chat started - previous conversation cleared',
+                'ephemeral_mode': True
+            })
+        
+        # CONSENT GIVEN: Create new database session
         if request.user.is_authenticated:
             new_session = ChatSession.objects.create(user=request.user)
         else:
@@ -416,7 +525,8 @@ def api_new_chat(request):
 
         return JsonResponse({
             'session_id': new_session.id,
-            'message': 'New chat session created successfully'
+            'message': 'New chat session created successfully',
+            'ephemeral_mode': False
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
