@@ -4,6 +4,41 @@ from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.contrib import messages
 from django import forms
 from django.contrib.auth.models import User
+from .models import UserPreference
+
+
+def _transfer_anonymous_consent(request, user):
+    """Transfer consent from anonymous session to authenticated user"""
+    try:
+        # Get or create user preferences FIRST to ensure it exists
+        user_prefs, created = UserPreference.objects.get_or_create(user=user)
+        
+        # Check if there was an anonymous session with consent
+        anon_id = request.session.get('anon_id')
+        if not anon_id:
+            return
+        
+        # Get anonymous preferences
+        anon_prefs = UserPreference.objects.filter(anon_id=anon_id, user=None).first()
+        if anon_prefs:
+            # Transfer all preferences from anonymous to authenticated
+            # Always transfer tone and language
+            user_prefs.tone = anon_prefs.tone
+            user_prefs.language = anon_prefs.language
+            
+            # Transfer consent if it was set (True or False, but not default)
+            if anon_prefs.data_consent or anon_prefs.consent_timestamp:
+                user_prefs.data_consent = anon_prefs.data_consent
+                user_prefs.consent_timestamp = anon_prefs.consent_timestamp
+                user_prefs.consent_version = anon_prefs.consent_version
+            
+            user_prefs.save()
+            
+            # Optionally delete the anonymous preferences
+            # anon_prefs.delete()
+    except Exception as e:
+        # Log error but don't break the login flow
+        pass
 
 
 class CustomUserCreationForm(UserCreationForm):
@@ -52,6 +87,10 @@ def register_view(request):
         form = CustomUserCreationForm(request.POST)
         if form.is_valid():
             user = form.save()
+            
+            # Transfer anonymous consent if it exists
+            _transfer_anonymous_consent(request, user)
+            
             # Automatically log the user in after registration
             login(request, user)
             messages.success(request, f'Welcome, {user.username}! Your account has been created.')
@@ -75,6 +114,9 @@ def login_view(request):
         user = authenticate(request, username=username, password=password)
         
         if user is not None:
+            # Transfer anonymous consent if it exists
+            _transfer_anonymous_consent(request, user)
+            
             login(request, user)
             messages.success(request, f'Welcome back, {user.username}!')
             # Redirect to next page if specified, otherwise to chat
