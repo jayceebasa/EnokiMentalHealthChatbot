@@ -1379,7 +1379,9 @@
                     ${renderEmotions(emotions)}
                     <div class="message-time">${timeStr || fmtTime()}</div>
                 `;
-                content.querySelector('.message-text').textContent = text;
+                // Convert newlines to <br> tags and set innerHTML with escaped HTML
+                const escapedText = escapeHtml(text).replace(/\n/g, '<br>');
+                content.querySelector('.message-text').innerHTML = escapedText;
                 wrapper.appendChild(content);
                 chatMessages.appendChild(wrapper);
                 scrollToBottom();
