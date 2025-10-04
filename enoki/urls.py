@@ -15,16 +15,22 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from core.views import (
     home, chat, api_chat, api_chat_history, api_chat_context,
     api_new_chat, api_chat_sessions, api_chat_session_detail, api_switch_session, api_current_session,
     api_consent, api_consent_status, api_clear_ephemeral_chat
 )
+from core.auth_views import register_view, login_view, logout_view, anonymous_chat_view
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', home, name='home'),
+    path('', login_view, name='home'),  # Redirect home to login
+    path('login/', login_view, name='login'),
+    path('register/', register_view, name='register'),
+    path('logout/', logout_view, name='logout'),
+    path('anonymous/', anonymous_chat_view, name='anonymous_chat'),
+    path('oauth/', include('social_django.urls', namespace='social')),  # OAuth URLs
     path('chat/', chat, name='chat'),
     path('api/chat/', api_chat, name='api_chat'),
     path('api/chat/history/', api_chat_sessions, name='api_chat_sessions'),  # Updated to use new function

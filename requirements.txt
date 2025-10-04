@@ -10,3 +10,4 @@ whitenoise==6.11.0
 google-generativeai
 httpx
 cryptography==43.0.1
+social-auth-app-django==5.4.0
