@@ -637,6 +637,40 @@ def api_switch_session(request, session_id):
 
 
 @csrf_exempt
+@require_http_methods(["DELETE"])
+def api_delete_session(request, session_id):
+    """Delete a specific chat session."""
+    try:
+        # Get the session to delete, ensuring ownership
+        if request.user.is_authenticated:
+            session = ChatSession.objects.get(id=session_id, user=request.user)
+        else:
+            anon_id = _get_or_create_anon_id(request)
+            session = ChatSession.objects.get(id=session_id, anon_id=anon_id)
+
+        # Check if this is the current session
+        current_session_id = request.session.get('current_chat_session_id')
+        was_current = (session.id == current_session_id)
+
+        # Delete the session (this will cascade delete all messages)
+        session.delete()
+
+        # If we deleted the current session, clear it from the session
+        if was_current:
+            if 'current_chat_session_id' in request.session:
+                del request.session['current_chat_session_id']
+
+        return JsonResponse({
+            'message': 'Chat session deleted successfully',
+            'was_current_session': was_current
+        })
+    except ChatSession.DoesNotExist:
+        return JsonResponse({'error': 'Chat session not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
 @require_http_methods(["GET"])
 def api_current_session(request):
     """Get the current active session ID for debugging."""
