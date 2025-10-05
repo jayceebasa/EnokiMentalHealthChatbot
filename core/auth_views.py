@@ -91,8 +91,8 @@ def register_view(request):
             # Transfer anonymous consent if it exists
             _transfer_anonymous_consent(request, user)
             
-            # Automatically log the user in after registration
-            login(request, user)
+            # Automatically log the user in after registration with explicit backend
+            login(request, user, backend='django.contrib.auth.backends.ModelBackend')
             messages.success(request, f'Welcome, {user.username}! Your account has been created.')
             return redirect('chat')
         else:
@@ -117,7 +117,8 @@ def login_view(request):
             # Transfer anonymous consent if it exists
             _transfer_anonymous_consent(request, user)
             
-            login(request, user)
+            # Log in with explicit backend
+            login(request, user, backend='django.contrib.auth.backends.ModelBackend')
             messages.success(request, f'Welcome back, {user.username}!')
             # Redirect to next page if specified, otherwise to chat
             next_page = request.GET.get('next', 'chat')
