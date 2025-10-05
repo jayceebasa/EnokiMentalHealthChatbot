@@ -15,24 +15,25 @@
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #A2D8A6;
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
             padding: 1rem;
-            color: #333;
+            color: #313D3E;
             line-height: 1.6;
         }
 
         .auth-container {
-            background: rgba(255, 255, 255, 0.95);
+            background: #F7FAF8;
             backdrop-filter: blur(10px);
             border-radius: 24px;
+            border: 2px solid rgba(73, 108, 79, 0.15);
             padding: 3rem 2.5rem;
             max-width: 450px;
             width: 100%;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
             animation: fadeIn 0.5s ease;
         }
 
@@ -55,7 +56,7 @@
         .logo h1 {
             font-size: 2.5rem;
             font-weight: 700;
-            background: linear-gradient(45deg, #667eea, #764ba2);
+            background: linear-gradient(45deg, #A2D8A6, #496C4F);
             background-clip: text;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -63,7 +64,7 @@
         }
 
         .logo p {
-            color: #666;
+            color: #4C5859;
             font-size: 0.95rem;
         }
 
@@ -74,7 +75,7 @@
         .form-group label {
             display: block;
             margin-bottom: 0.5rem;
-            color: #333;
+            color: #313D3E;
             font-weight: 500;
             font-size: 0.9rem;
         }
@@ -91,14 +92,14 @@
 
         .form-group input:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #A2D8A6;
+            box-shadow: 0 0 0 3px rgba(162, 216, 166, 0.15);
         }
 
         .form-group small {
             display: block;
             margin-top: 0.25rem;
-            color: #666;
+            color: #4C5859;
             font-size: 0.8rem;
         }
 
@@ -115,19 +116,20 @@
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: #A2D8A6;
+            color: #313D3E;
         }
 
         .btn-primary:hover {
+            background: #C3E7C3;
             transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 10px 25px rgba(195, 231, 195, 0.4);
         }
 
         .btn-oauth {
             background: white;
             border: 2px solid #e0e0e0;
-            color: #333;
+            color: #444444;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -136,7 +138,7 @@
 
         .btn-oauth:hover {
             background: #f8f9fa;
-            border-color: #667eea;
+            border-color: #5B8A8A;
             transform: translateY(-2px);
         }
 
@@ -175,14 +177,14 @@
         }
 
         .links a {
-            color: #667eea;
+            color: #5B8A8A;
             text-decoration: none;
             font-weight: 500;
             transition: color 0.3s ease;
         }
 
         .links a:hover {
-            color: #764ba2;
+            color: #66A34A;
             text-decoration: underline;
         }
 
@@ -230,7 +232,7 @@
 
         .password-requirements ul {
             margin-left: 1.5rem;
-            color: #666;
+            color: #444444;
         }
 
         .password-requirements li {
