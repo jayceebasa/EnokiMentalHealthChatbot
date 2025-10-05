@@ -1,9 +1,11 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Up - EnokiAI</title>
+    <link rel="icon" type="image/png" href="{% static 'img/EnokIcon.png' %}">
     <style>
         * {
             margin: 0;
@@ -330,7 +332,7 @@
 <body>
     <div class="auth-container">
         <div class="logo">
-            <h1>🍄 Enoki</h1>
+            <img src="{% static 'img/enokiLogo.png' %}" alt="Enoki Logo" style="max-width: 200px; margin-bottom: 1rem;">
             <p>Create your account</p>
         </div>
 

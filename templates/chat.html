@@ -1,9 +1,11 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EnokiAI Chat</title>
+    <link rel="icon" type="image/png" href="{% static 'img/EnokIcon.png' %}">
     <style>
         * {
             margin: 0;
@@ -1524,7 +1526,7 @@
     <div class="chat-container">
         <div class="header">
             <div class="header-left">
-                <h1>🍄 EnokiAI Chat</h1>
+                <h1><img src="{% static 'img/enokiLogo.png' %}" alt="Enoki Logo" style="height: 40px; vertical-align: middle; margin-right: 0.5rem;"></h1>
                 <button class="new-chat-btn" id="new-chat-btn">
                     <span>✨</span>
                     New Chat
