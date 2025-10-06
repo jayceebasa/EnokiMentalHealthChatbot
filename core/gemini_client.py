@@ -47,6 +47,31 @@ FRIENDLY_REPLACEMENTS = {
     "processing": "working through"
 }
 
+PHILIPPINE_CRISIS_RESOURCES = {
+    "national_hotlines": [
+        "**National Center for Mental Health Crisis Hotline**: 1553 (landline nationwide, toll-free) or 0917-899-8727",
+        "**HOPELINE Philippines**: 2919 (Globe/TM toll-free) or (02) 8804-4673",
+        "**In Touch Community Services**: (02) 8893-7603 or 0917-800-1123 (24/7 free crisis line)"
+    ],
+    "regional_hotlines": [
+        "**Tawag Paglaum - Centro Bisaya** (Cebu): 0939-937-5433 or 0927-654-1629",
+        "**Quezon City Helpline**: 122 (for QC residents)"
+    ],
+    "emergency": "**Emergency Services**: 911"
+}
+
+SELF_HARM_KEYWORDS = frozenset([
+    "self harm", "self-harm", "cut myself", "cutting", "hurt myself", 
+    "end my life", "kill myself", "suicide", "suicidal", "want to die",
+    "better off dead", "no point living", "can't go on", "join them",
+    "be with them", "end it all", "take my life", "overdose"
+])
+CRISIS_PHRASES = frozenset([
+    "i want to die", "i don't want to live", "life isn't worth living",
+    "everyone would be better without me", "i have a plan", "i can't take it anymore",
+    "there's no hope", "i'm done", "i give up", "what's the point"
+])
+
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel("gemini-2.5-flash")
 
@@ -83,6 +108,8 @@ def generate_reply(
     ]
 
     # Severity checks
+    self_harm_detected = any(phrase in user_lower for phrase in SELF_HARM_KEYWORDS)
+    crisis_phrases_detected = any(phrase in user_lower for phrase in CRISIS_PHRASES)
     grief_present = any(word in user_lower for word in GRIEF_KEYWORDS)
     risk_present = any(word in user_lower for word in RISK_KEYWORDS)
     crisis_risk = any(word in user_lower for word in CRISIS_WORDS)
@@ -106,16 +133,28 @@ def generate_reply(
         for e in emotions
     )
 
-    # Immediate return for crisis/panic
-    if severe_panic or panic_present or "can't breathe" in user_lower:
-        return add_breaks(
-            "You're not alone. I'm here with you. Try this:\n\nBreathe in slowly—1, 2, 3, 4. Hold—1, 2, 3, 4. Out—1, 2, 3, 4.\n\nYou're safe. This moment will pass. I'm with you—no need to reply, just focus on breathing and know I'm right here for you."
-        )
+    # Crisis intervention (Philippines hotlines)
+    high_risk_crisis = self_harm_detected or crisis_phrases_detected or risk_present or crisis_risk
+    if high_risk_crisis:
+        crisis_message = "I'm really concerned about you right now. Your life has value, and there are people who want to help.\n\n"
+        crisis_message += "**🆘 IMMEDIATE HELP - PHILIPPINES CRISIS HOTLINES:**\n\n"
+        for hotline in PHILIPPINE_CRISIS_RESOURCES["national_hotlines"]:
+            crisis_message += f"• {hotline}\n"
+        crisis_message += f"\n• {PHILIPPINE_CRISIS_RESOURCES['emergency']}\n\n"
+        crisis_message += "**Regional Support:**\n"
+        for hotline in PHILIPPINE_CRISIS_RESOURCES["regional_hotlines"]:
+            crisis_message += f"• {hotline}\n"
+        crisis_message += "\n**These are all FREE, confidential, and available 24/7.** Please reach out to any of them right now - you don't have to face this alone.\n\n"
+        crisis_message += "You matter. Your feelings are valid, but there are people trained to help you through this safely. I'm here with you too, but please contact one of these crisis lines for immediate professional support."
+        return add_breaks(crisis_message)
 
-    if risk_present or crisis_risk:
-        return add_breaks(
-            "I can see you're in deep pain right now. Please reach out to someone you trust, or a crisis line, as soon as you can. You really matter, and you're not alone."
-        )
+    # Panic attack support
+    if severe_panic or panic_present or "can't breathe" in user_lower:
+        panic_msg = "You're not alone. I'm here with you. Try this:\n\nBreathe in slowly—1, 2, 3, 4. Hold—1, 2, 3, 4. Out—1, 2, 3, 4.\n\nYou're safe. This moment will pass. If you need urgent help, you can contact:\n"
+        panic_msg += f"• {PHILIPPINE_CRISIS_RESOURCES['national_hotlines'][0]}\n"
+        panic_msg += f"• {PHILIPPINE_CRISIS_RESOURCES['emergency']}\n\n"
+        panic_msg += "No need to reply—just focus on breathing and know I'm right here for you."
+        return add_breaks(panic_msg)
 
     if grief_present or grief_context:
         pet_name = "Tiger" if "tiger" in user_lower else "them"
@@ -123,7 +162,6 @@ def generate_reply(
             f"It's so hard to lose someone who means so much. The love you have for {pet_name} is real and precious. Grief can feel like too much sometimes. I'm here and holding space for you."
         )
 
-    # Normal greetings
     if any(greet in user_lower for greet in ["hi", "hello", "hey", "what's up", "hi there"]):
         return add_breaks(random.choice(friendly_greets))
 
@@ -184,17 +222,12 @@ Respond:
             reply = reply.replace(clinical, natural)
         return add_breaks(reply)
     except Exception:
-        if severe_panic or panic_present:
-            return add_breaks(
-                "I'm right here with you. Don't worry about talking—just focus on breathing, nice and slow. This feeling will pass."
-            )
-        else:
-            return add_breaks(
-                random.choice([
-                    "Hey, sorry if my reply's a bit off—my brain might be on autopilot! What's up with you today?",
-                    "Haha, sometimes I just space out. Want to share what's on your mind?"
-                ])
-            )
+        return add_breaks(
+            random.choice([
+                "Hey, sorry if my reply's a bit off—my brain might be on autopilot! What's up with you today?",
+                "Haha, sometimes I just space out. Want to share what's on your mind?"
+            ])
+        )
 
 def update_summary(existing_summary: Optional[str], history: List[Dict], latest_user: str, latest_bot: str) -> str:
     recent_snips = []
