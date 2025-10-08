@@ -101,13 +101,47 @@ def generate_reply(
     memory = memory or {}
     main_focus = memory.get("stressor") or memory.get("motivation") or "whatever's up right now"
     helpful_things = memory.get("coping", [])
+    
+    # Extract tone preference
+    tone = preferences.get('tone', 'empathetic').lower() if preferences else 'empathetic'
+    
+    # Define tone styles for mental health context
+    tone_styles = {
+        'empathetic': {
+            'style': 'warm, deeply understanding, and compassionate',
+            'approach': 'Validate feelings gently and offer comforting presence'
+        },
+        'supportive': {
+            'style': 'encouraging, uplifting, and positive',
+            'approach': 'Focus on strengths and offer hopeful perspectives'
+        },
+        'professional': {
+            'style': 'respectful, structured, and therapeutic',
+            'approach': 'Use therapeutic language while maintaining warmth'
+        },
+        'gentle': {
+            'style': 'soft, calming, and tender',
+            'approach': 'Speak very softly and prioritize comfort over all else'
+        },
+        'casual': {
+            'style': 'friendly, relaxed, and conversational',
+            'approach': 'Chat like a close friend who genuinely cares'
+        },
+        'batman': {
+            'style': 'gravelly, direct, and justice-oriented with dark knight wisdom',
+            'approach': 'Speak like batman. Speak with intensity and determination, emphasizing strength and resilience. Use short, powerful statements. Channel the darkness into hope.'
+        }
+    }
+    
+    tone_config = tone_styles.get(tone, tone_styles['empathetic'])
+    
     friendly_greets = [
         "Hey, good to hear from you!",
         "Hi! Been up to anything interesting today?",
         "Heyy! What's new or just the same old same old?"
     ]
 
-    # Severity checks
+    # ...existing code for severity checks...
     self_harm_detected = any(phrase in user_lower for phrase in SELF_HARM_KEYWORDS)
     crisis_phrases_detected = any(phrase in user_lower for phrase in CRISIS_PHRASES)
     grief_present = any(word in user_lower for word in GRIEF_KEYWORDS)
@@ -133,7 +167,7 @@ def generate_reply(
         for e in emotions
     )
 
-    # Crisis intervention (Philippines hotlines)
+    # Crisis intervention (Philippines hotlines) - tone doesn't override crisis response
     high_risk_crisis = self_harm_detected or crisis_phrases_detected or risk_present or crisis_risk
     if high_risk_crisis:
         crisis_message = "I'm really concerned about you right now. Your life has value, and there are people who want to help.\n\n"
@@ -148,7 +182,7 @@ def generate_reply(
         crisis_message += "You matter. Your feelings are valid, but there are people trained to help you through this safely. I'm here with you too, but please contact one of these crisis lines for immediate professional support."
         return add_breaks(crisis_message)
 
-    # Panic attack support
+    # Panic attack support - tone doesn't override panic response
     if severe_panic or panic_present or "can't breathe" in user_lower:
         panic_msg = "You're not alone. I'm here with you. Try this:\n\nBreathe in slowly—1, 2, 3, 4. Hold—1, 2, 3, 4. Out—1, 2, 3, 4.\n\nYou're safe. This moment will pass. If you need urgent help, you can contact:\n"
         panic_msg += f"• {PHILIPPINE_CRISIS_RESOURCES['national_hotlines'][0]}\n"
@@ -165,7 +199,7 @@ def generate_reply(
     if any(greet in user_lower for greet in ["hi", "hello", "hey", "what's up", "hi there"]):
         return add_breaks(random.choice(friendly_greets))
 
-    # Conversation logic for gentle/casual
+    # Conversation logic with tone applied
     smalltalk_examples = [
         "I've been thinking way too much about what to eat for dinner.",
         "Honestly, my brain's been bouncing around random memories today.",
@@ -185,7 +219,10 @@ Recent convo:
 State: {emotion_context}
 Main focus: {main_focus}
 
-Reply with gentle warmth:
+**Conversation Tone**: {tone_config['style']}
+**Approach**: {tone_config['approach']}
+
+Reply with this tone in mind:
 - Validate their feeling
 - Offer comfort/presence
 - No long personal tangents
@@ -207,10 +244,14 @@ Their vibe: {emotion_context}
 Main focus: {main_focus}
 Trying: {helpful_things_str}
 
+**Conversation Tone**: {tone_config['style']}
+**Approach**: {tone_config['approach']}
+
 Respond:
-- Keep it casual, gentle, and easy to read
+- Keep it {tone_config['style'].split(',')[0]}
 - Break replies into short, warm paragraphs
 - End naturally—a gentle question or comforting thought
+- Embody the tone throughout your response
 '''
 
     try:

@@ -487,7 +487,7 @@ def chat(request):
         "preferences": prefs,
         "session": session,
         "is_authenticated": request.user.is_authenticated,
-        "tones": ["empathetic", "supportive", "neutral", "concise"],
+                "tones": ["empathetic", "supportive", "professional", "gentle", "casual", "batman"],
         "summary": session.summary,
         "memory": session.memory,
     })
