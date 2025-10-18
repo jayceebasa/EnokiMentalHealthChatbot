@@ -2,8 +2,13 @@ import os
 import re
 import random
 import hashlib
+import time
+import logging
 import google.generativeai as genai
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 FLOW_GUIDES = [
     "keep things casual and focused on what they just said",
@@ -73,12 +78,90 @@ CRISIS_PHRASES = frozenset([
 ])
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-2.5-flash")
+model = genai.GenerativeModel("gemini-2.0-flash-exp")
 
 def add_breaks(text: str, max_sentences=2) -> str:
     sentences = re.split(r'(?<=[.!?])\s+', text.strip())
     paragraphs = [' '.join(sentences[i:i+max_sentences]) for i in range(0, len(sentences), max_sentences)]
     return '\n\n'.join(paragraphs)
+
+def assess_crisis_risk(user_text: str) -> Tuple[bool, str]:
+    """
+    Use Gemini to assess if message indicates immediate crisis/self-harm risk.
+    Returns (is_crisis, risk_type)
+    
+    Risk types:
+    - immediate_danger: Active plans to harm self or others
+    - severe_distress: Extreme distress but no immediate harm plans
+    - safe: Normal conversation or manageable distress
+    """
+    crisis_prompt = f"""You are a mental health crisis detector. Analyze this message for IMMEDIATE safety concerns.
+
+Message: "{user_text}"
+
+Determine if this indicates:
+1. **IMMEDIATE_DANGER**: Active plans to harm self or others, suicidal intent, self-harm intent
+2. **SEVERE_DISTRESS**: Extreme emotional distress but no immediate harm plans
+3. **SAFE**: Normal conversation or manageable distress
+
+Look for:
+- Direct or indirect mentions of self-harm, suicide, or harming others
+- Expressions of hopelessness with plans to act
+- Descriptions of self-harm methods or plans
+- Statements about wanting to die or end life
+
+Examples of IMMEDIATE_DANGER:
+- "I'm going to hurt myself"
+- "I'll just slice my neck with a blade"
+- "I want to end it all tonight"
+- "I have pills and I'm ready"
+- "I'm going to jump"
+- "I can't take it anymore, I'm done"
+
+Examples of SEVERE_DISTRESS (not immediate danger):
+- "I feel so hopeless"
+- "Everything is falling apart"
+- "I don't know how much longer I can do this"
+
+Examples of SAFE:
+- "I'm having a bad day"
+- "I'm feeling sad about my breakup"
+- "Work is really stressing me out"
+
+Respond with ONLY ONE WORD:
+- IMMEDIATE_DANGER
+- SEVERE_DISTRESS
+- SAFE"""
+
+    try:
+        response = model.generate_content(
+            crisis_prompt,
+            generation_config={
+                "temperature": 0.1,  # Low temperature for consistent assessment
+                "max_output_tokens": 50
+            },
+            request_options={"timeout": 10}
+        )
+        
+        assessment = response.text.strip().upper()
+        logger.info(f"Crisis assessment: {assessment} for message: {user_text[:50]}...")
+        
+        if "IMMEDIATE_DANGER" in assessment:
+            return (True, "immediate_danger")
+        elif "SEVERE_DISTRESS" in assessment:
+            return (False, "severe_distress")
+        else:
+            return (False, "safe")
+            
+    except Exception as e:
+        logger.error(f"Crisis assessment failed: {str(e)}")
+        # Fallback to keyword detection if Gemini fails
+        user_lower = user_text.lower()
+        if any(phrase in user_lower for phrase in SELF_HARM_KEYWORDS) or \
+           any(phrase in user_lower for phrase in CRISIS_PHRASES):
+            logger.warning(f"Fallback crisis detection triggered for: {user_text[:50]}")
+            return (True, "immediate_danger")
+        return (False, "safe")
 
 def generate_reply(
     user_text: str,
@@ -90,6 +173,27 @@ def generate_reply(
 ) -> str:
     user_lower = (user_text or "").lower()
     history = history or []
+    
+    # STEP 1: Use Gemini to assess crisis risk FIRST (before any other checks)
+    is_crisis, risk_type = assess_crisis_risk(user_text)
+    
+    # STEP 2: If Gemini detects IMMEDIATE_DANGER, show hotlines immediately
+    if is_crisis or risk_type == "immediate_danger":
+        logger.warning(f"🚨 CRISIS DETECTED by Gemini - Message: {user_text[:100]}")
+        
+        crisis_message = "I'm really concerned about you right now. Your life has value, and there are people who want to help.\n\n"
+        crisis_message += "**🆘 IMMEDIATE HELP - PHILIPPINES CRISIS HOTLINES:**\n\n"
+        for hotline in PHILIPPINE_CRISIS_RESOURCES["national_hotlines"]:
+            crisis_message += f"• {hotline}\n"
+        crisis_message += f"\n• {PHILIPPINE_CRISIS_RESOURCES['emergency']}\n\n"
+        crisis_message += "**Regional Support:**\n"
+        for hotline in PHILIPPINE_CRISIS_RESOURCES["regional_hotlines"]:
+            crisis_message += f"• {hotline}\n"
+        crisis_message += "\n**These are all FREE, confidential, and available 24/7.** Please reach out to any of them right now - you don't have to face this alone.\n\n"
+        crisis_message += "You matter. Your feelings are valid, but there are people trained to help you through this safely. I'm here with you too, but please contact one of these crisis lines for immediate professional support."
+        return add_breaks(crisis_message)
+    
+    # Continue with normal conversation flow
     recent_history = history[-12:]
     convo_snippets = [
         f"{'You' if h.get('role') == 'user' else 'Me'}: {h.get('text','').strip()}"
@@ -162,25 +266,13 @@ def generate_reply(
         if any(n in user_lower for n in negative_words):
             sarcasm_flag = True
 
+    # Include Gemini's severe_distress assessment in high_distress
     high_distress = any(
         e.get('label', '').lower() in HIGH_DISTRESS and e.get('score', 0) >= 0.35
         for e in emotions
-    )
+    ) or risk_type == "severe_distress"
 
-    # Crisis intervention (Philippines hotlines) - tone doesn't override crisis response
-    high_risk_crisis = self_harm_detected or crisis_phrases_detected or risk_present or crisis_risk
-    if high_risk_crisis:
-        crisis_message = "I'm really concerned about you right now. Your life has value, and there are people who want to help.\n\n"
-        crisis_message += "**🆘 IMMEDIATE HELP - PHILIPPINES CRISIS HOTLINES:**\n\n"
-        for hotline in PHILIPPINE_CRISIS_RESOURCES["national_hotlines"]:
-            crisis_message += f"• {hotline}\n"
-        crisis_message += f"\n• {PHILIPPINE_CRISIS_RESOURCES['emergency']}\n\n"
-        crisis_message += "**Regional Support:**\n"
-        for hotline in PHILIPPINE_CRISIS_RESOURCES["regional_hotlines"]:
-            crisis_message += f"• {hotline}\n"
-        crisis_message += "\n**These are all FREE, confidential, and available 24/7.** Please reach out to any of them right now - you don't have to face this alone.\n\n"
-        crisis_message += "You matter. Your feelings are valid, but there are people trained to help you through this safely. I'm here with you too, but please contact one of these crisis lines for immediate professional support."
-        return add_breaks(crisis_message)
+    # Note: Crisis intervention is now handled at the top of the function via assess_crisis_risk()
 
     # Panic attack support - tone doesn't override panic response
     if severe_panic or panic_present or "can't breathe" in user_lower:
