@@ -5,9 +5,10 @@ set -e
 
 echo "Starting Django application setup..."
 
-# Wait for database to be ready
-echo "Waiting for database..."
-python << END
+# Check if we're using PostgreSQL
+if [ "$POSTGRES_DB" ]; then
+    echo "Waiting for database..."
+    python << END
 import os
 import time
 import psycopg2
@@ -15,7 +16,8 @@ from psycopg2 import OperationalError
 
 def wait_for_db():
     db_conn = None
-    while not db_conn:
+    retries = 30
+    while not db_conn and retries > 0:
         try:
             db_conn = psycopg2.connect(
                 host=os.getenv('POSTGRES_HOST', 'db'),
@@ -25,12 +27,19 @@ def wait_for_db():
                 password=os.getenv('POSTGRES_PASSWORD', 'postgres')
             )
         except OperationalError:
-            print('Database unavailable, waiting 1 second...')
-            time.sleep(1)
-    print('Database available!')
+            print('Database unavailable, waiting 2 seconds...')
+            time.sleep(2)
+            retries -= 1
+    if db_conn:
+        print('Database available!')
+    else:
+        print('Could not connect to database after 30 retries')
 
 wait_for_db()
 END
+else
+    echo "Using SQLite database..."
+fi
 
 # Run database migrations
 echo "Running database migrations..."

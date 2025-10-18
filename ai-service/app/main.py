@@ -1,4 +1,5 @@
 from typing import List
+from functools import lru_cache
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from transformers import pipeline
@@ -17,13 +18,26 @@ class EmotionResponse(BaseModel):
 
 # ------------------ ML Models ------------------
 
-# Emotion classifier
-emotion_classifier = pipeline(
-    "text-classification",
-    model="SamLowe/roberta-base-go_emotions",
-    tokenizer="SamLowe/roberta-base-go_emotions",
-    top_k=None
-)
+@lru_cache(maxsize=1)
+def get_emotion_classifier():
+    """
+    Cache the RoBERTa emotion classifier to avoid reloading on every request.
+    
+    Benefits:
+    - First call: Loads model (~2-3 seconds)
+    - Subsequent calls: Uses cached model (~instant)
+    - Memory: ~700MB (loaded once, stays in RAM)
+    - Works on both localhost and production (Railway)
+    """
+    return pipeline(
+        "text-classification",
+        model="SamLowe/roberta-base-go_emotions",
+        tokenizer="SamLowe/roberta-base-go_emotions",
+        top_k=None
+    )
+
+# Initialize the emotion classifier (will be cached after first use)
+emotion_classifier = get_emotion_classifier()
 
 # ------------------ API ------------------
 
