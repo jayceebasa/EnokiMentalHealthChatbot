@@ -1,21 +1,12 @@
 import os
 import re
 import random
-import hashlib
-import time
 import logging
 import google.generativeai as genai
 from typing import List, Optional, Dict, Any, Tuple
 
 # Setup logging
 logger = logging.getLogger(__name__)
-
-FLOW_GUIDES = [
-    "keep things casual and focused on what they just said",
-    "pick out something real from their message — avoid generic stuff",
-    "mix up how you start — sometimes reflect, sometimes build on what they said",
-    "let your response grow naturally from their feelings"
-]
 
 GRIEF_KEYWORDS = frozenset(["died", "passed", "funeral",
                            "miss", "pet", "dog", "cat", "tiger", "rainbow bridge"])
@@ -30,31 +21,6 @@ PANIC_KEYWORDS = frozenset([
     "hyperventilating", "can't breathe", "cannot breathe", "panic attack",
     "closing in", "overwhelmed", "terrified", "tight chest", "shortness of breath"
 ])
-GREETINGS = [
-    "Hey! How's your day going?",
-    "Hi there! How are you feeling today?",
-    "Hello! What's been on your mind lately?",
-    "Hey there! How are things?",
-    "Hi! How's everything with you?"
-]
-SARCASTIC_PHRASES = frozenset([
-    "oh great", "just great", "fantastic", "wonderful", "perfect",
-    "exactly what i needed", "just what i wanted", "how lovely",
-    "oh joy", "thrilling", "amazing", "brilliant", "awesome"
-])
-NATURAL_REPHRASES = {
-    "It sounds like ": "",
-    "That sounds ": "",
-    "It seems like ": "",
-    "I'm sorry to hear ": ""
-}
-FRIENDLY_REPLACEMENTS = {
-    "coping strategies": "things that help",
-    "stressor": "what's been tough",
-    "emotional trajectory": "how you've been feeling",
-    "validated": "heard",
-    "processing": "working through"
-}
 
 PHILIPPINE_CRISIS_RESOURCES = {
     "national_hotlines": [
@@ -144,7 +110,7 @@ Respond with ONLY ONE WORD:
         response = model.generate_content(
             crisis_prompt,
             generation_config={
-                "temperature": 0.1,  # Low temperature for consistent assessment
+                "temperature": 0.1,
                 "max_output_tokens": 50
             },
             request_options={"timeout": 10}
@@ -223,7 +189,7 @@ Respond naturally and warmly, as if you're genuinely concerned about them. Make 
             response = model.generate_content(
                 crisis_prompt,
                 generation_config={
-                    "temperature": 0.7,  # Slightly higher for more natural response
+                    "temperature": 0.7,
                     "max_output_tokens": 500
                 },
                 request_options={"timeout": 10}
@@ -233,7 +199,6 @@ Respond naturally and warmly, as if you're genuinely concerned about them. Make 
             return add_breaks(reply)
         except Exception as e:
             logger.error(f"Crisis response generation failed: {str(e)}")
-            # Fallback to supportive response with resources
             fallback_msg = f"I'm really concerned about you right now. Your life has value, and there are people who want to help you through this.\n\n{crisis_resources_text}\n\nPlease reach out to one of these resources right now. You don't have to face this alone, and there are trained professionals ready to support you."
             return add_breaks(fallback_msg)
 
@@ -288,35 +253,14 @@ Respond naturally and warmly, as if you're genuinely concerned about them. Make 
 
     tone_config = tone_styles.get(tone, tone_styles['empathetic'])
 
-    friendly_greets = [
-        "Hey, good to hear from you!",
-        "Hi! Been up to anything interesting today?",
-        "Heyy! What's new or just the same old same old?"
-    ]
-
-    # ...existing code for severity checks...
-    self_harm_detected = any(
-        phrase in user_lower for phrase in SELF_HARM_KEYWORDS)
-    crisis_phrases_detected = any(
-        phrase in user_lower for phrase in CRISIS_PHRASES)
+    # Severity checks
     grief_present = any(word in user_lower for word in GRIEF_KEYWORDS)
-    risk_present = any(word in user_lower for word in RISK_KEYWORDS)
-    crisis_risk = any(word in user_lower for word in CRISIS_WORDS)
     grief_context = any(word in user_lower for word in GRIEF_WORDS)
     panic_present = any(word in user_lower for word in PANIC_KEYWORDS)
     severe_panic = any(kw in user_lower for kw in PANIC_KEYWORDS) or (
         "fear" in emotion_context and any(
             e.get('score', 0) > 0.6 for e in emotions if e.get('label') == 'fear')
     )
-
-    sarcasm_flag = False
-    if any(phrase in user_lower for phrase in SARCASTIC_PHRASES):
-        negative_words = frozenset([
-            "not", "cant", "can't", "won't", "wont", "never", "no",
-            "fail", "bad", "awful", "terrible", "hate", "suck", "worst"
-        ])
-        if any(n in user_lower for n in negative_words):
-            sarcasm_flag = True
 
     # Include Gemini's severe_distress assessment in high_distress
     high_distress = any(
@@ -325,11 +269,8 @@ Respond naturally and warmly, as if you're genuinely concerned about them. Make 
         for e in emotions
     ) or risk_type == "severe_distress"
 
-    # Note: Crisis intervention is now handled at the top of the function via assess_crisis_risk()
-
     # Panic attack support - tone doesn't override panic response
     if severe_panic or panic_present or "can't breathe" in user_lower:
-        # Format crisis resources for the prompt
         panic_resources = "\n".join(
             [PHILIPPINE_CRISIS_RESOURCES['national_hotlines'][0], PHILIPPINE_CRISIS_RESOURCES['emergency']])
 
@@ -367,12 +308,10 @@ Keep your response warm, calming, and direct. Break it into short paragraphs. Em
             return add_breaks(panic_reply)
         except Exception as e:
             logger.error(f"Panic response generation failed: {str(e)}")
-            # Fallback to basic panic support
             fallback_panic = f"You're not alone. I'm here with you. Breathe in slowly—1, 2, 3, 4. Hold—1, 2, 3, 4. Out—1, 2, 3, 4.\n\nYou're safe. This will pass. If you need urgent help:\n{panic_resources}"
             return add_breaks(fallback_panic)
 
     if grief_present or grief_context:
-        # Format crisis resources for the prompt
         grief_resources = "\n".join(
             [PHILIPPINE_CRISIS_RESOURCES['national_hotlines'][0], PHILIPPINE_CRISIS_RESOURCES['emergency']])
 
@@ -411,25 +350,14 @@ Keep your response warm, gentle, and deeply compassionate. Break it into short p
             return add_breaks(grief_reply)
         except Exception as e:
             logger.error(f"Grief response generation failed: {str(e)}")
-            # Fallback to supportive grief response
             fallback_grief = f"I'm so sorry for your loss. The love you had is real and precious, and grief is the price we pay for that love. I'm here with you through this."
             return add_breaks(fallback_grief)
 
-    # Removed hardcoded greeting fallback - let Gemini handle all responses with emotional context
-
     # Conversation logic with tone applied
-    smalltalk_examples = [
-        "I've been thinking way too much about what to eat for dinner.",
-        "Honestly, my brain's been bouncing around random memories today.",
-        "Kept humming a song all morning for some reason. Earworms, right?",
-        "Just the usual—trying to not nap in the middle of the afternoon, haha.",
-        "Trying and failing to keep my plants alive. Oops."
-    ]
     helpful_things_str = ', '.join(
         helpful_things[:2]) if helpful_things else "just finding what works and what doesn't"
 
     if high_distress or grief_context:
-        # Format crisis resources for the prompt
         crisis_resources = "\n".join(
             PHILIPPINE_CRISIS_RESOURCES["national_hotlines"])
         emergency = PHILIPPINE_CRISIS_RESOURCES["emergency"]
@@ -460,13 +388,7 @@ Reply with this tone in mind:
 '''
     else:
         prompt = f'''
-You're Enoki, chatting like a close friend.
-
-Example opening: "{random.choice(smalltalk_examples)}"
-Follow-up: "What about you? Been up to anything fun or just normal stuff today?"
-
-Recent convo:
-{convo_context}
+You're Enoki, chatting like a close friend who genuinely cares.
 
 They just said: "{user_text}"
 
@@ -488,10 +410,6 @@ Respond:
         response = model.generate_content(prompt)
         reply = response.text.strip() if hasattr(
             response, "text") and response.text else ""
-        for old, new in NATURAL_REPHRASES.items():
-            reply = reply.replace(old, new)
-        for clinical, natural in FRIENDLY_REPLACEMENTS.items():
-            reply = reply.replace(clinical, natural)
         return add_breaks(reply)
     except Exception:
         return add_breaks(
@@ -532,6 +450,7 @@ Keep it casual and friendly."""
         return add_breaks(existing_summary or "Chat is ongoing and supportive.")
 
 
+# Memory tracking constants
 WORK_WORDS = frozenset(["work", "job", "boss", "shift", "overtime"])
 SCHOOL_WORDS = frozenset(["school", "study", "exam", "grade"])
 FAMILY_WORDS = frozenset(["family", "parent", "sibling", "relationship"])
