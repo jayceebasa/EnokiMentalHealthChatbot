@@ -82,11 +82,12 @@ Analyze these dimensions:
 
 Now classify based on TRUE INTENT and SEMANTIC MEANING:
 
-**IMMEDIATE_DANGER**: User expresses active intent to harm self/others with specific plans or timeframe
-- "I'm going to [specific method]"
-- "I have a plan for tonight"
-- "I'm ready to end this"
-- NOT just dark thoughts or venting
+**IMMEDIATE_DANGER**: User expresses self-harm or suicide intent (with or without specific plans)
+- Any mention of suicide, self-harm, or ending their life
+- Specific methods: "jump", "pills", "cut", "hurt myself", etc.
+- Statements like: "I'll kill myself", "I want to die", "I should end this", "I'll jump"
+- Hopelessness combined with capability/intent
+- INCLUDE crisis resources even without specific plans - err on side of safety
 
 **GRIEF**: User is processing loss, mourning, or death-related content
 - Mentions death, funeral, loss
@@ -98,11 +99,11 @@ Now classify based on TRUE INTENT and SEMANTIC MEANING:
 - Describes panic attack
 - Acute physical distress (not just emotional)
 
-**HIGH_DISTRESS**: User expresses genuine emotional suffering without immediate self-harm plans
-- Hopelessness/despair without specific intent
+**HIGH_DISTRESS**: User expresses genuine emotional suffering without self-harm mentions
+- Hopelessness/despair but no suicide/self-harm language
 - Feeling trapped or unable to cope
 - Severe emotional pain that goes beyond daily stress
-- NOT just casual venting or homework stress
+- NOT expressing intent to harm themselves
 
 **NORMAL**: Regular conversation about manageable concerns
 - Everyday stress, procrastination, complaints
@@ -110,7 +111,10 @@ Now classify based on TRUE INTENT and SEMANTIC MEANING:
 - Seeking practical advice
 - Venting for relief (not crisis)
 
-REMEMBER: Understand the MEANING, not just the WORDS.
+REMEMBER: 
+- If the user mentions suicide, self-harm, or killing themselves = IMMEDIATE_DANGER (SAFETY FIRST)
+- Understand the MEANING, not just the WORDS
+- When in doubt about safety, escalate
 
 Classify into ONE category:
 IMMEDIATE_DANGER
