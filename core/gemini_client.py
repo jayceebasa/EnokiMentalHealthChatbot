@@ -29,7 +29,8 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel("gemini-2.0-flash")
 
 
-def add_breaks(text: str, max_sentences=2) -> str:
+def add_breaks(text: str, max_sentences=4) -> str:
+    """Add paragraph breaks every 4 sentences to maintain readability without breaking flow."""
     sentences = re.split(r'(?<=[.!?])\s+', text.strip())
     paragraphs = [' '.join(sentences[i:i+max_sentences])
                   for i in range(0, len(sentences), max_sentences)]
@@ -245,6 +246,12 @@ Current message: "{user_text}"
 
 Emotional indicators (RoBERTa): {emotion_context}
 
+**CRITICAL INSTRUCTIONS**:
+- DO NOT repeat or echo back what they said
+- DO NOT start with casual interjections like "Hey!" or "Oh!"
+- DO take this seriously and respond with genuine concern
+- Tone: {tone_config['style']}
+
 **Your task** (be concise and complete):
 1. Validate their feelings with genuine concern
 2. Emphasize their life has value
@@ -289,6 +296,12 @@ Current message: "{user_text}"
 
 Emotional indicators (RoBERTa): {emotion_context}
 
+**CRITICAL INSTRUCTIONS**:
+- DO NOT repeat or echo back what they said
+- DO NOT start with "Hey!" or similar casual greetings
+- DO respond with deep compassion
+- Tone: {tone_config['style']}
+
 **Your task** (be concise and complete):
 1. Respond with deep compassion and understanding
 2. Acknowledge the weight of their loss
@@ -297,8 +310,6 @@ Emotional indicators (RoBERTa): {emotion_context}
 5. Complete your thoughts fully
 
 **Response length**: Grief requires thoughtful, unhurried response. Match the depth of their loss. Be thorough - don't rush.
-
-**Tone**: {tone_config['style']}
 
 Keep it warm, gentle, and complete - no cut-off sentences. Reference their loss and our conversation history.'''
 
@@ -332,6 +343,12 @@ Current message: "{user_text}"
 
 Emotional indicators (RoBERTa): {emotion_context}
 
+**CRITICAL INSTRUCTIONS**:
+- DO NOT repeat or echo back what they said
+- DO NOT start with "Hey!" or casual greetings
+- DO provide immediate grounding support
+- Tone: {tone_config['style']}
+
 **Your task** (be concise and complete):
 1. Respond with immediate grounding and support
 2. Guide them through calming breathing: "Breathe in—1, 2, 3, 4. Hold—1, 2, 3, 4. Out—1, 2, 3, 4."
@@ -340,8 +357,6 @@ Emotional indicators (RoBERTa): {emotion_context}
 5. Complete your thoughts fully
 
 **Response length**: Panic needs focused, direct support. Be concise but thorough - help them ground NOW. Don't ramble.
-
-**Tone**: {tone_config['style']}
 
 Keep it warm, calming, and complete - no cut-off sentences. Reference their situation from our conversation.'''
 
@@ -379,6 +394,12 @@ Current message: "{user_text}"
 
 Emotional indicators (RoBERTa): {emotion_context}
 Their situation: {main_focus}
+
+**CRITICAL INSTRUCTIONS**:
+- DO NOT repeat or echo back what they said
+- DO NOT start with "Hey!" or casual greetings
+- DO respond with genuine concern
+- Tone: {tone_config['style']}
 
 **Your task** (be concise and complete):
 1. Validate their feelings with genuine understanding
@@ -424,16 +445,21 @@ Emotional indicators (RoBERTa): {emotion_context}
 Their situation: {main_focus}
 What's helping them: {helpful_things_str}
 
+**CRITICAL INSTRUCTIONS**:
+- DO NOT repeat or echo back what they said
+- DO NOT start with "Hey!" or "Oh!" or similar interjections
+- DO match the tone: {tone_config['style']}
+- DO respond conversationally as a friend would
+- DO be concise and genuine
+
 **Your task** (be concise and complete):
-1. Respond naturally and warmly
+1. Respond naturally and warmly in the specified tone
 2. Show you understand their situation
 3. Offer genuine support or practical suggestions
 4. Ask a thoughtful follow-up question
 5. Complete your thoughts fully
 
 **Response length**: Keep it natural. Short and sweet for casual chat, longer if they need advice. Don't force length - be genuine and conversational.
-
-**Tone**: {tone_config['style']}
 
 Keep it natural, warm, and complete - no cut-off sentences. Remember what they've shared with you in our conversation.'''
 
