@@ -488,6 +488,9 @@ document.addEventListener("DOMContentLoaded", function () {
       // Update last message time AFTER successful response
       lastMessageTime = Date.now();
 
+      // Reload chat history to ensure updated conversation context
+      loadChatHistory();
+
       // Update context panel
       if (summaryEl) summaryEl.textContent = data.summary || "";
       if (memoryEl) memoryEl.innerHTML = renderMemory(data.memory);
