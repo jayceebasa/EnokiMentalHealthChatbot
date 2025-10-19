@@ -769,7 +769,15 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
-    chatSessionsList.innerHTML = sessions
+    // Filter out sessions with invalid dates
+    const validSessions = sessions.filter(session => session.updated_at);
+    
+    if (validSessions.length === 0) {
+      chatSessionsList.innerHTML = '<p style="color: #718096; text-align: center; padding: 2rem;">No chat history yet</p>';
+      return;
+    }
+
+    chatSessionsList.innerHTML = validSessions
       .map(
         (session) => `
             <div class="chat-session ${session.is_current ? "active" : ""}" data-session-id="${session.id}">
@@ -924,9 +932,19 @@ document.addEventListener("DOMContentLoaded", function () {
       fetchContext();
     });
 
+  // Helper function to check if current chat has any messages
+  function hasMessages() {
+    const messages = chatMessages.querySelectorAll(".chat-message, .thinking-indicator");
+    return messages.length > 0;
+  }
+
   // New chat button
   if (newChatBtn)
     newChatBtn.addEventListener("click", function () {
+      if (!hasMessages()) {
+        alert("Start a conversation first before creating a new chat.");
+        return;
+      }
       if (confirm("Start a new chat? Your current conversation will be saved to history.")) {
         startNewChat();
       }
@@ -936,6 +954,10 @@ document.addEventListener("DOMContentLoaded", function () {
   const newChatBtnHistory = document.getElementById("new-chat-btn-history");
   if (newChatBtnHistory)
     newChatBtnHistory.addEventListener("click", function () {
+      if (!hasMessages()) {
+        alert("Start a conversation first before creating a new chat.");
+        return;
+      }
       if (confirm("Start a new chat? Your current conversation will be saved to history.")) {
         startNewChat();
       }
