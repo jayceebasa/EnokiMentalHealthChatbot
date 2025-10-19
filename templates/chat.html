@@ -1843,6 +1843,14 @@
                             countdownInterval = null;
                         }
                     }, 1000);
+                } else {
+                    // No cooldown needed, enable button immediately
+                    sendBtn.textContent = 'Send';
+                    sendBtn.disabled = false;
+                    if (countdownInterval) {
+                        clearInterval(countdownInterval);
+                        countdownInterval = null;
+                    }
                 }
             }
 
@@ -2089,11 +2097,16 @@
             }
 
             async function sendMessage(text) {
+                // Check if button is already disabled (cooldown active)
+                if (sendBtn.disabled) {
+                    return;
+                }
+                
                 // Check rate limit
                 const now = Date.now();
                 const timeSinceLastMessage = now - lastMessageTime;
                 
-                if (timeSinceLastMessage < RATE_LIMIT_MS) {
+                if (timeSinceLastMessage < RATE_LIMIT_MS && lastMessageTime > 0) {
                     const secondsLeft = Math.ceil((RATE_LIMIT_MS - timeSinceLastMessage) / 1000);
                     appendMessage({ 
                         sender: 'bot', 
@@ -2109,7 +2122,7 @@
                     return;
                 }
                 
-                if (!text || !text.trim() || sendBtn.disabled) {
+                if (!text || !text.trim()) {
                     return;
                 }
                 
