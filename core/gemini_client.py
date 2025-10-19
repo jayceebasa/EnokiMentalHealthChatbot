@@ -238,7 +238,10 @@ def generate_reply(
 
         crisis_prompt = f'''You are Enoki, a compassionate mental health companion. The user expressed concerns about self-harm or suicide.
 
-Message: "{user_text}"
+Recent conversation:
+{convo_context}
+
+Current message: "{user_text}"
 
 Emotional indicators (RoBERTa): {emotion_context}
 
@@ -254,7 +257,7 @@ Emotional indicators (RoBERTa): {emotion_context}
 Crisis Resources:
 {crisis_resources_text}
 
-Keep it warm, caring, and complete - no cut-off sentences.'''
+Keep it warm, caring, and complete - no cut-off sentences. Reference their situation from the conversation.'''
 
         try:
             response = model.generate_content(
@@ -279,7 +282,10 @@ Keep it warm, caring, and complete - no cut-off sentences.'''
 
         grief_prompt = f'''You are Enoki, supporting someone experiencing grief and loss.
 
-Message: "{user_text}"
+Recent conversation:
+{convo_context}
+
+Current message: "{user_text}"
 
 Emotional indicators (RoBERTa): {emotion_context}
 
@@ -294,7 +300,7 @@ Emotional indicators (RoBERTa): {emotion_context}
 
 **Tone**: {tone_config['style']}
 
-Keep it warm, gentle, and complete - no cut-off sentences.'''
+Keep it warm, gentle, and complete - no cut-off sentences. Reference their loss and our conversation history.'''
 
         try:
             response = model.generate_content(
@@ -319,7 +325,10 @@ Keep it warm, gentle, and complete - no cut-off sentences.'''
 
         panic_prompt = f'''You are Enoki, supporting someone experiencing a panic attack or acute anxiety.
 
-Message: "{user_text}"
+Recent conversation:
+{convo_context}
+
+Current message: "{user_text}"
 
 Emotional indicators (RoBERTa): {emotion_context}
 
@@ -334,7 +343,7 @@ Emotional indicators (RoBERTa): {emotion_context}
 
 **Tone**: {tone_config['style']}
 
-Keep it warm, calming, and complete - no cut-off sentences.'''
+Keep it warm, calming, and complete - no cut-off sentences. Reference their situation from our conversation.'''
 
         try:
             response = model.generate_content(
@@ -363,7 +372,10 @@ Keep it warm, calming, and complete - no cut-off sentences.'''
 
         distress_prompt = f'''You are Enoki, supporting someone in emotional distress.
 
-Message: "{user_text}"
+Recent conversation:
+{convo_context}
+
+Current message: "{user_text}"
 
 Emotional indicators (RoBERTa): {emotion_context}
 Their situation: {main_focus}
@@ -381,7 +393,7 @@ Their situation: {main_focus}
 
 **Tone**: {tone_config['style']}
 
-Keep it warm, caring, and concise. Complete your thoughts - no cut-off sentences.'''
+Keep it warm, caring, and concise. Complete your thoughts - no cut-off sentences. Reference what they've shared with you.'''
 
         try:
             response = model.generate_content(
@@ -403,7 +415,10 @@ Keep it warm, caring, and concise. Complete your thoughts - no cut-off sentences
     else:  # response_type == "normal"
         normal_prompt = f'''You are Enoki, chatting like a close friend who genuinely cares.
 
-Message: "{user_text}"
+Recent conversation:
+{convo_context}
+
+Current message: "{user_text}"
 
 Emotional indicators (RoBERTa): {emotion_context}
 Their situation: {main_focus}
@@ -420,7 +435,7 @@ What's helping them: {helpful_things_str}
 
 **Tone**: {tone_config['style']}
 
-Keep it natural, warm, and complete - no cut-off sentences.'''
+Keep it natural, warm, and complete - no cut-off sentences. Remember what they've shared with you in our conversation.'''
 
         try:
             response = model.generate_content(
