@@ -51,24 +51,67 @@ def assess_response_type(user_text: str, emotions: List[Dict[str, float]]) -> st
     
     emotion_summary = ", ".join(emotion_data) if emotion_data else "neutral emotions"
     
-    assessment_prompt = f"""You are a mental health AI assistant. Analyze this message considering both the text and emotional analysis.
+    assessment_prompt = f"""You are a mental health AI expert. Your task is to understand the USER'S TRUE INTENT AND EMOTIONAL STATE, not just surface-level words.
 
 Message: "{user_text}"
 
-Emotional state detected by RoBERTa: {emotion_summary}
+Emotional indicators (RoBERTa): {emotion_summary}
 
-Classify into ONE of these categories:
+Analyze these dimensions:
 
-1. **IMMEDIATE_DANGER**: User mentions active plans to harm themselves/others, suicide intent, self-harm intent
-2. **GRIEF**: User is processing loss, death, grief, mourning
-3. **PANIC**: User describes panic attack symptoms or acute physical anxiety
-4. **HIGH_DISTRESS**: User expresses severe emotional distress without immediate self-harm plans
-5. **NORMAL**: Regular conversation, manageable stress, everyday concerns
+1. **TRUE INTENT**: What is the user actually trying to communicate?
+   - Are they joking/venting for relief? (even with negative words)
+   - Are they genuinely in crisis with specific plans?
+   - Are they seeking practical help vs. emotional support?
 
-Consider both the message content AND the emotional indicators from RoBERTa.
-If emotions show high fear/sadness/anger but message seems casual, escalate assessment.
+2. **TONE & CONTEXT**: How serious is this message?
+   - Casual/humorous tone (even with "I hate", "I'm dying") = likely not crisis
+   - Serious/hopeless tone = escalate
+   - Factual complaint vs. emotional spiral
 
-Respond with ONLY the category name (one word):
+3. **SEMANTIC MEANING**: What does this really mean?
+   - "I want to die" (in a joke context) ≠ "I have a plan to end my life"
+   - "I'm overwhelmed" (with work) ≠ "I feel completely hopeless"
+   - Strong language ≠ strong intent
+
+4. **COHERENCE CHECK**: Do RoBERTa emotions match message intent?
+   - High anxiety + casual tone = likely stress-masking → NORMAL (for now) or HIGH_DISTRESS if serious content
+   - High sadness + loss mention = GRIEF
+   - High fear + physical symptoms = PANIC
+
+Now classify based on TRUE INTENT and SEMANTIC MEANING:
+
+**IMMEDIATE_DANGER**: User expresses active intent to harm self/others with specific plans or timeframe
+- "I'm going to [specific method]"
+- "I have a plan for tonight"
+- "I'm ready to end this"
+- NOT just dark thoughts or venting
+
+**GRIEF**: User is processing loss, mourning, or death-related content
+- Mentions death, funeral, loss
+- Expressing sadness about someone/something specific
+- Contextually clear loss situation
+
+**PANIC**: User describes acute physical anxiety or panic attack symptoms
+- Can't breathe, chest pain, hyperventilating
+- Describes panic attack
+- Acute physical distress (not just emotional)
+
+**HIGH_DISTRESS**: User expresses genuine emotional suffering without immediate self-harm plans
+- Hopelessness/despair without specific intent
+- Feeling trapped or unable to cope
+- Severe emotional pain that goes beyond daily stress
+- NOT just casual venting or homework stress
+
+**NORMAL**: Regular conversation about manageable concerns
+- Everyday stress, procrastination, complaints
+- Joking/sarcasm even with negative words
+- Seeking practical advice
+- Venting for relief (not crisis)
+
+REMEMBER: Understand the MEANING, not just the WORDS.
+
+Classify into ONE category:
 IMMEDIATE_DANGER
 GRIEF
 PANIC
@@ -206,6 +249,8 @@ Emotional indicators (RoBERTa): {emotion_context}
 4. Include ALL crisis resources below
 5. End with reassurance they're not alone
 
+**Response length**: This is a crisis - respond with appropriate depth and care. Be thorough but not verbose. Use length that matches severity.
+
 Crisis Resources:
 {crisis_resources_text}
 
@@ -216,7 +261,7 @@ Keep it warm, caring, and complete - no cut-off sentences.'''
                 crisis_prompt,
                 generation_config={
                     "temperature": 0.7,
-                    "max_output_tokens": 500
+                    "max_output_tokens": 1000
                 },
                 request_options={"timeout": 10}
             )
@@ -245,6 +290,8 @@ Emotional indicators (RoBERTa): {emotion_context}
 4. Offer gentle presence and honor their memories
 5. Complete your thoughts fully
 
+**Response length**: Grief requires thoughtful, unhurried response. Match the depth of their loss. Be thorough - don't rush.
+
 **Tone**: {tone_config['style']}
 
 Keep it warm, gentle, and complete - no cut-off sentences.'''
@@ -254,7 +301,7 @@ Keep it warm, gentle, and complete - no cut-off sentences.'''
                 grief_prompt,
                 generation_config={
                     "temperature": 0.7,
-                    "max_output_tokens": 300
+                    "max_output_tokens": 600
                 },
                 request_options={"timeout": 10}
             )
@@ -283,6 +330,8 @@ Emotional indicators (RoBERTa): {emotion_context}
 4. Use grounding techniques (5 senses, etc.)
 5. Complete your thoughts fully
 
+**Response length**: Panic needs focused, direct support. Be concise but thorough - help them ground NOW. Don't ramble.
+
 **Tone**: {tone_config['style']}
 
 Keep it warm, calming, and complete - no cut-off sentences.'''
@@ -292,7 +341,7 @@ Keep it warm, calming, and complete - no cut-off sentences.'''
                 panic_prompt,
                 generation_config={
                     "temperature": 0.7,
-                    "max_output_tokens": 300
+                    "max_output_tokens": 600
                 },
                 request_options={"timeout": 10}
             )
@@ -328,6 +377,8 @@ Their situation: {main_focus}
 {emergency}
 5. End with hope and reassurance
 
+**Response length**: Match the depth of their distress. If severe, be thorough. If manageable, be brief but supportive. Quality over quantity.
+
 **Tone**: {tone_config['style']}
 
 Keep it warm, caring, and concise. Complete your thoughts - no cut-off sentences.'''
@@ -337,7 +388,7 @@ Keep it warm, caring, and concise. Complete your thoughts - no cut-off sentences
                 distress_prompt,
                 generation_config={
                     "temperature": 0.7,
-                    "max_output_tokens": 350
+                    "max_output_tokens": 700
                 },
                 request_options={"timeout": 10}
             )
@@ -365,6 +416,8 @@ What's helping them: {helpful_things_str}
 4. Ask a thoughtful follow-up question
 5. Complete your thoughts fully
 
+**Response length**: Keep it natural. Short and sweet for casual chat, longer if they need advice. Don't force length - be genuine and conversational.
+
 **Tone**: {tone_config['style']}
 
 Keep it natural, warm, and complete - no cut-off sentences.'''
@@ -374,7 +427,7 @@ Keep it natural, warm, and complete - no cut-off sentences.'''
                 normal_prompt,
                 generation_config={
                     "temperature": 0.7,
-                    "max_output_tokens": 300
+                    "max_output_tokens": 600
                 },
                 request_options={"timeout": 10}
             )
