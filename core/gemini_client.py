@@ -308,11 +308,38 @@ Respond naturally and warmly, as if you're genuinely concerned about them. Make 
 
     # Panic attack support - tone doesn't override panic response
     if severe_panic or panic_present or "can't breathe" in user_lower:
-        panic_msg = "You're not alone. I'm here with you. Try this:\n\nBreathe in slowly—1, 2, 3, 4. Hold—1, 2, 3, 4. Out—1, 2, 3, 4.\n\nYou're safe. This moment will pass. If you need urgent help, you can contact:\n"
-        panic_msg += f"• {PHILIPPINE_CRISIS_RESOURCES['national_hotlines'][0]}\n"
-        panic_msg += f"• {PHILIPPINE_CRISIS_RESOURCES['emergency']}\n\n"
-        panic_msg += "No need to reply—just focus on breathing and know I'm right here for you."
-        return add_breaks(panic_msg)
+      # Format crisis resources for the prompt
+      panic_resources = f"• {PHILIPPINE_CRISIS_RESOURCES['national_hotlines'][0]}\n• {PHILIPPINE_CRISIS_RESOURCES['emergency']}"
+      
+      panic_prompt = f'''You are Enoki, a compassionate mental health companion. The user is experiencing a panic attack or severe anxiety.
+
+  User message: "{user_text}"
+
+  Your task:
+  1. Provide immediate grounding support in 2-3 SHORT sentences
+  2. Guide them through breathing: "Breathe in slowly—1, 2, 3, 4. Hold—1, 2, 3, 4. Out—1, 2, 3, 4."
+  3. Reassure them they're safe and this will pass
+  4. Include these crisis resources if they need urgent help:
+  {panic_resources}
+
+  Keep your response to 3-4 sentences total. Be calming, direct, and supportive.'''
+
+      try:
+        response = model.generate_content(
+          panic_prompt,
+          generation_config={
+            "temperature": 0.6,
+            "max_output_tokens": 200
+          },
+          request_options={"timeout": 10}
+        )
+        panic_reply = response.text.strip() if hasattr(response, "text") and response.text else ""
+        return add_breaks(panic_reply)
+      except Exception as e:
+        logger.error(f"Panic response generation failed: {str(e)}")
+        # Fallback to basic panic support
+        fallback_panic = f"You're not alone. I'm here with you. Breathe in slowly—1, 2, 3, 4. Hold—1, 2, 3, 4. Out—1, 2, 3, 4.\n\nYou're safe. This will pass. If you need urgent help:\n{panic_resources}"
+        return add_breaks(fallback_panic)
 
     if grief_present or grief_context:
         pet_name = "Tiger" if "tiger" in user_lower else "them"
