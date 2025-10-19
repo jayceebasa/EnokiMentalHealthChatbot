@@ -2097,23 +2097,25 @@
             }
 
             async function sendMessage(text) {
-                // Check if button is already disabled (cooldown active)
-                if (sendBtn.disabled) {
+                // Check if button is already disabled (cooldown active or processing)
+                if (sendBtn.disabled && sendBtn.textContent.includes('Wait')) {
                     return;
                 }
                 
-                // Check rate limit
-                const now = Date.now();
-                const timeSinceLastMessage = now - lastMessageTime;
-                
-                if (timeSinceLastMessage < RATE_LIMIT_MS && lastMessageTime > 0) {
-                    const secondsLeft = Math.ceil((RATE_LIMIT_MS - timeSinceLastMessage) / 1000);
-                    appendMessage({ 
-                        sender: 'bot', 
-                        text: `⏱️ Please wait ${secondsLeft} more second${secondsLeft > 1 ? 's' : ''} before sending another message.` 
-                    });
-                    startCooldownTimer();
-                    return;
+                // Check rate limit (only if we have a previous message time)
+                if (lastMessageTime > 0) {
+                    const now = Date.now();
+                    const timeSinceLastMessage = now - lastMessageTime;
+                    
+                    if (timeSinceLastMessage < RATE_LIMIT_MS) {
+                        const secondsLeft = Math.ceil((RATE_LIMIT_MS - timeSinceLastMessage) / 1000);
+                        appendMessage({ 
+                            sender: 'bot', 
+                            text: `⏱️ Please wait ${secondsLeft} more second${secondsLeft > 1 ? 's' : ''} before sending another message.` 
+                        });
+                        startCooldownTimer();
+                        return;
+                    }
                 }
                 
                 // Check consent status before sending
@@ -2132,10 +2134,9 @@
                     language: languageSelect ? languageSelect.value : undefined,
                 };
                 try {
-                    // Update last message time
-                    lastMessageTime = Date.now();
-                    
+                    // Disable send button while processing (but don't start cooldown yet)
                     sendBtn.disabled = true;
+                    sendBtn.textContent = 'Sending...';
                     
                     // Add user message
                     appendMessage({ sender: 'user', text: payload.message, emotions: null });
@@ -2165,6 +2166,8 @@
                             sender: 'bot', 
                             text: `⏱️ ${data.error || 'Please wait before sending another message.'}` 
                         });
+                        // Update last message time to prevent bypass
+                        lastMessageTime = Date.now();
                         if (data.retry_after) {
                             startCooldownTimer();
                         }
@@ -2186,6 +2189,10 @@
                     }
 
                     appendMessage({ sender: 'bot', text: data.reply });
+                    
+                    // Update last message time AFTER successful response
+                    lastMessageTime = Date.now();
+                    
                     // Update context panel
                     if (summaryEl) summaryEl.textContent = data.summary || '';
                     if (memoryEl) memoryEl.innerHTML = renderMemory(data.memory);
@@ -2193,7 +2200,7 @@
                     hideThinkingIndicator();
                     appendMessage({ sender: 'bot', text: `Sorry, I hit an error: ${err.message}` });
                 } finally {
-                    // Start cooldown timer
+                    // Start cooldown timer AFTER AI response (or error)
                     startCooldownTimer();
                     messageInput.focus();
                 }
