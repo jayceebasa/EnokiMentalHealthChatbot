@@ -36,31 +36,37 @@ def add_breaks(text: str, max_sentences=2) -> str:
     return '\n\n'.join(paragraphs)
 
 
-def assess_response_type(user_text: str) -> str:
+def assess_response_type(user_text: str, emotions: List[Dict[str, float]]) -> str:
     """
-    Use Gemini to intelligently determine what type of response is needed.
+    Use Gemini to intelligently determine response type, considering RoBERTa emotions.
     Returns response type: immediate_danger, grief, panic, high_distress, or normal
     """
-    assessment_prompt = f"""You are a mental health AI assistant. Analyze this message and determine what type of response is needed.
+    # Extract emotion context from RoBERTa
+    emotion_data = []
+    for emotion in emotions[:3]:
+        label = emotion.get('label', 'unknown')
+        score = emotion.get('score', 0)
+        if score > 0.2:  # Only include emotions with reasonable confidence
+            emotion_data.append(f"{label} ({score:.2f})")
+    
+    emotion_summary = ", ".join(emotion_data) if emotion_data else "neutral emotions"
+    
+    assessment_prompt = f"""You are a mental health AI assistant. Analyze this message considering both the text and emotional analysis.
 
 Message: "{user_text}"
+
+Emotional state detected by RoBERTa: {emotion_summary}
 
 Classify into ONE of these categories:
 
 1. **IMMEDIATE_DANGER**: User mentions active plans to harm themselves/others, suicide intent, self-harm intent
-   Examples: "I'm going to hurt myself", "I have a plan to end it", "I want to kill myself tonight"
-
 2. **GRIEF**: User is processing loss, death, grief, mourning
-   Examples: "My dad died", "I miss my dog so much", "I went to a funeral today"
-
 3. **PANIC**: User describes panic attack symptoms or acute physical anxiety
-   Examples: "I can't breathe", "I'm hyperventilating", "panic attack", "tight chest"
-
 4. **HIGH_DISTRESS**: User expresses severe emotional distress without immediate self-harm plans
-   Examples: "I feel hopeless", "Everything is falling apart", "I can't take this anymore"
-
 5. **NORMAL**: Regular conversation, manageable stress, everyday concerns
-   Examples: "I'm overwhelmed with homework", "Work is stressful today", "Had a bad day"
+
+Consider both the message content AND the emotional indicators from RoBERTa.
+If emotions show high fear/sadness/anger but message seems casual, escalate assessment.
 
 Respond with ONLY the category name (one word):
 IMMEDIATE_DANGER
@@ -81,7 +87,7 @@ NORMAL"""
 
         assessment = response.text.strip().upper()
         logger.info(
-            f"Response type assessment: {assessment} for message: {user_text[:50]}...")
+            f"Response type assessment: {assessment} | Emotions: {emotion_summary} | Message: {user_text[:50]}...")
 
         # Extract the response type from the response
         valid_types = ["IMMEDIATE_DANGER", "GRIEF", "PANIC", "HIGH_DISTRESS", "NORMAL"]
@@ -93,7 +99,14 @@ NORMAL"""
 
     except Exception as e:
         logger.error(f"Response type assessment failed: {str(e)}")
-        # If Gemini fails, default to normal conversation
+        # Fallback: Use RoBERTa emotions to make a safe guess
+        if emotions:
+            top_emotion = emotions[0].get('label', '').lower()
+            score = emotions[0].get('score', 0)
+            if score > 0.6:
+                if top_emotion in ['fear', 'sadness', 'anger']:
+                    logger.info(f"Fallback to high_distress based on {top_emotion}")
+                    return "high_distress"
         return "normal"
 
 
@@ -108,8 +121,8 @@ def generate_reply(
     user_lower = (user_text or "").lower()
     history = history or []
 
-    # STEP 1: Use Gemini to assess what type of response is needed
-    response_type = assess_response_type(user_text)
+    # STEP 1: Use Gemini to assess response type, considering RoBERTa emotions
+    response_type = assess_response_type(user_text, emotions)
     logger.info(f"Response type determined: {response_type}")
 
     # Extract tone preference
@@ -184,6 +197,8 @@ def generate_reply(
 
 Message: "{user_text}"
 
+Emotional indicators (RoBERTa): {emotion_context}
+
 **Your task** (be concise and complete):
 1. Validate their feelings with genuine concern
 2. Emphasize their life has value
@@ -221,6 +236,8 @@ Keep it warm, caring, and complete - no cut-off sentences.'''
 
 Message: "{user_text}"
 
+Emotional indicators (RoBERTa): {emotion_context}
+
 **Your task** (be concise and complete):
 1. Respond with deep compassion and understanding
 2. Acknowledge the weight of their loss
@@ -256,6 +273,8 @@ Keep it warm, gentle, and complete - no cut-off sentences.'''
         panic_prompt = f'''You are Enoki, supporting someone experiencing a panic attack or acute anxiety.
 
 Message: "{user_text}"
+
+Emotional indicators (RoBERTa): {emotion_context}
 
 **Your task** (be concise and complete):
 1. Respond with immediate grounding and support
@@ -297,6 +316,9 @@ Keep it warm, calming, and complete - no cut-off sentences.'''
 
 Message: "{user_text}"
 
+Emotional indicators (RoBERTa): {emotion_context}
+Their situation: {main_focus}
+
 **Your task** (be concise and complete):
 1. Validate their feelings with genuine understanding
 2. Show you take this seriously
@@ -332,6 +354,7 @@ Keep it warm, caring, and concise. Complete your thoughts - no cut-off sentences
 
 Message: "{user_text}"
 
+Emotional indicators (RoBERTa): {emotion_context}
 Their situation: {main_focus}
 What's helping them: {helpful_things_str}
 
