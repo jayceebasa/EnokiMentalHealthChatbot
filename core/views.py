@@ -3,11 +3,13 @@ import httpx
 import json
 import uuid
 import logging
+import time
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
+from django.core.cache import cache
 from .gemini_client import generate_reply, update_summary, update_memory
 from .models import ChatSession, Message, UserPreference
 from django.db import transaction
@@ -16,6 +18,21 @@ AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://127.0.0.1:8001")
 
 # Set up audit logging
 audit_logger = logging.getLogger('audit')
+
+# Rate limiting configuration
+RATE_LIMIT_SECONDS = 5  # 5 seconds between messages
+RATE_LIMIT_CACHE_PREFIX = "rate_limit_"
+
+
+def _get_user_identifier(request):
+    """Get a unique identifier for rate limiting (user ID or session key)"""
+    if request.user.is_authenticated:
+        return f"user_{request.user.id}"
+    else:
+        # Use session key for anonymous users
+        if not request.session.session_key:
+            request.session.create()
+        return f"session_{request.session.session_key}"
 
 
 def _check_consent(prefs):
@@ -32,6 +49,25 @@ def home(request):
 def api_chat(request):
     """API endpoint for testing Gemini + RoBERTa integration with curl"""
     try:
+        # Rate limiting check - backend protection
+        user_identifier = _get_user_identifier(request)
+        rate_limit_key = f"{RATE_LIMIT_CACHE_PREFIX}{user_identifier}"
+        
+        last_request_time = cache.get(rate_limit_key)
+        current_time = time.time()
+        
+        if last_request_time:
+            time_since_last_request = current_time - last_request_time
+            if time_since_last_request < RATE_LIMIT_SECONDS:
+                remaining_time = RATE_LIMIT_SECONDS - time_since_last_request
+                return JsonResponse({
+                    'error': f'Rate limit exceeded. Please wait {int(remaining_time) + 1} more seconds.',
+                    'retry_after': int(remaining_time) + 1
+                }, status=429)
+        
+        # Set new rate limit timestamp
+        cache.set(rate_limit_key, current_time, timeout=RATE_LIMIT_SECONDS + 1)
+        
         data = json.loads(request.body)
         user_message = data.get('message', '')
         tone = data.get('tone')
