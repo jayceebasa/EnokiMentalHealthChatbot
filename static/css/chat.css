@@ -34,8 +34,8 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 0;
-  margin-bottom: 1rem;
+  padding: 0 0;
+  margin-bottom: .25rem;
 }
 
 .header-left {
