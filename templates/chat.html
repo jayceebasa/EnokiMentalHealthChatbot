@@ -128,13 +128,6 @@
               <div class="message-content">
                 <div class="sender-name">{% if m.sender == 'user' %}User{% else %}EnokiAI{% endif %}</div>
                 <div class="message-text">{{ m.plaintext }}</div>
-                {% if m.emotions %}
-                <div class="message-emotions">
-                  {% for emo in m.emotions|slice:":3" %}
-                  <span class="emotion-pill">{{ emo.label }} {{ emo.score|floatformat:2 }}</span>
-                  {% endfor %}
-                </div>
-                {% endif %}
                 <div class="message-time">{{ m.created_at }}</div>
               </div>
             </div>
