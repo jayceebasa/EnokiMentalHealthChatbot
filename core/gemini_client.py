@@ -26,7 +26,7 @@ PHILIPPINE_CRISIS_RESOURCES = {
 }
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-2.5-flash")
+model = genai.GenerativeModel("gemini-2.0-flash")
 
 
 def add_breaks(text: str, max_sentences=4) -> str:
