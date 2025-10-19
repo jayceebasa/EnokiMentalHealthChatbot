@@ -891,6 +891,14 @@ document.addEventListener("DOMContentLoaded", function () {
       if (summaryEl) summaryEl.textContent = data.summary || "";
       if (memoryEl) memoryEl.innerHTML = renderMemory(data.memory);
 
+      // Update history highlighting - remove active class from all, add to current
+      document.querySelectorAll(".chat-session").forEach((session) => {
+        session.classList.remove("active");
+        if (session.dataset.sessionId === String(sessionId)) {
+          session.classList.add("active");
+        }
+      });
+
       // Close history panel
       closeHistoryPanel();
 
@@ -915,6 +923,8 @@ document.addEventListener("DOMContentLoaded", function () {
     const diffMs = now - date;
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
+    // Handle negative differences (future dates or timezone mismatches)
+    if (diffDays < 0) return "Today";
     if (diffDays === 0) return "Today";
     if (diffDays === 1) return "Yesterday";
     if (diffDays < 7) return `${diffDays} days ago`;

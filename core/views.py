@@ -288,7 +288,7 @@ def api_chat_history(request):
                 'sender': m.sender,
                 'text': getattr(m, 'plaintext', m.text),
                 'emotions': m.emotions,
-                'created_at': timezone.localtime(m.created_at).isoformat(),
+                'created_at': m.created_at.isoformat(),
             } for m in msgs
         ]
         return JsonResponse({
@@ -599,8 +599,8 @@ def api_chat_sessions(request):
                 'title': title,
                 'preview': preview,
                 'message_count': session.messages.count(),
-                'created_at': timezone.localtime(session.created_at).isoformat(),
-                'updated_at': timezone.localtime(session.updated_at).isoformat(),
+                'created_at': session.created_at.isoformat(),
+                'updated_at': session.updated_at.isoformat(),
                 'is_current': session.id == current_session.id
             })
 
@@ -630,7 +630,7 @@ def api_chat_session_detail(request, session_id):
                 'sender': msg.sender,
                 'text': getattr(msg, 'plaintext', msg.text),
                 'emotions': msg.emotions,
-                'created_at': timezone.localtime(msg.created_at).isoformat(),
+                'created_at': msg.created_at.isoformat(),
 
             })
 
@@ -639,8 +639,8 @@ def api_chat_session_detail(request, session_id):
             'messages': message_list,
             'summary': session.summary,
             'memory': session.memory,
-            'created_at': timezone.localtime(session.created_at).isoformat(),
-            'updated_at': timezone.localtime(session.updated_at).isoformat()
+            'created_at': session.created_at.isoformat(),
+            'updated_at': session.updated_at.isoformat()
         })
     except ChatSession.DoesNotExist:
         return JsonResponse({'error': 'Chat session not found'}, status=404)
