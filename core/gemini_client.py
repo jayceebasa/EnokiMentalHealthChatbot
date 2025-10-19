@@ -250,7 +250,8 @@ Emotional indicators (RoBERTa): {emotion_context}
 - DO NOT repeat or echo back what they said
 - DO NOT start with casual interjections like "Hey!" or "Oh!"
 - DO take this seriously and respond with genuine concern
-- Tone: {tone_config['style']}
+- Style: {tone_config['style']}
+- Approach: {tone_config['approach']}
 
 **Your task** (be concise and complete):
 1. Validate their feelings with genuine concern
@@ -300,7 +301,8 @@ Emotional indicators (RoBERTa): {emotion_context}
 - DO NOT repeat or echo back what they said
 - DO NOT start with "Hey!" or similar casual greetings
 - DO respond with deep compassion
-- Tone: {tone_config['style']}
+- Style: {tone_config['style']}
+- Approach: {tone_config['approach']}
 
 **Your task** (be concise and complete):
 1. Respond with deep compassion and understanding
@@ -347,7 +349,8 @@ Emotional indicators (RoBERTa): {emotion_context}
 - DO NOT repeat or echo back what they said
 - DO NOT start with "Hey!" or casual greetings
 - DO provide immediate grounding support
-- Tone: {tone_config['style']}
+- Style: {tone_config['style']}
+- Approach: {tone_config['approach']}
 
 **Your task** (be concise and complete):
 1. Respond with immediate grounding and support
@@ -399,7 +402,8 @@ Their situation: {main_focus}
 - DO NOT repeat or echo back what they said
 - DO NOT start with "Hey!" or casual greetings
 - DO respond with genuine concern
-- Tone: {tone_config['style']}
+- Style: {tone_config['style']}
+- Approach: {tone_config['approach']}
 
 **Your task** (be concise and complete):
 1. Validate their feelings with genuine understanding
@@ -448,7 +452,7 @@ What's helping them: {helpful_things_str}
 **CRITICAL INSTRUCTIONS**:
 - DO NOT repeat or echo back what they said
 - DO NOT start with "Hey!" or "Oh!" or similar interjections
-- DO match the tone: {tone_config['style']}
+- DO match the tone: Style: {tone_config['style']} | Approach: {tone_config['approach']}
 - DO respond conversationally as a friend would
 - DO be concise and genuine
 
