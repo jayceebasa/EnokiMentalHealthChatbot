@@ -78,7 +78,7 @@ CRISIS_PHRASES = frozenset([
 ])
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-2.0-flash-exp")
+model = genai.GenerativeModel("gemini-2.5-flash")
 
 def add_breaks(text: str, max_sentences=2) -> str:
     sentences = re.split(r'(?<=[.!?])\s+', text.strip())
@@ -302,6 +302,10 @@ def generate_reply(
     helpful_things_str = ', '.join(helpful_things[:2]) if helpful_things else "just finding what works and what doesn't"
 
     if high_distress or grief_context:
+        # Format crisis resources for the prompt
+        crisis_resources = "\n".join(PHILIPPINE_CRISIS_RESOURCES["national_hotlines"])
+        emergency = PHILIPPINE_CRISIS_RESOURCES["emergency"]
+        
         prompt = f'''
 You're Enoki, giving gentle support: "{user_text}"
 
@@ -314,9 +318,15 @@ Main focus: {main_focus}
 **Conversation Tone**: {tone_config['style']}
 **Approach**: {tone_config['approach']}
 
+**IMPORTANT**: If their message mentions thoughts of suicide, self-harm, wanting to die, or that life isn't worth living, you MUST include these Philippine crisis resources in your response:
+
+{crisis_resources}
+{emergency}
+
 Reply with this tone in mind:
 - Validate their feeling
 - Offer comfort/presence
+- If they mention suicidal thoughts, provide the crisis hotlines above warmly and encourage them to reach out
 - No long personal tangents
 - Ask what (if anything) helps right now
 '''

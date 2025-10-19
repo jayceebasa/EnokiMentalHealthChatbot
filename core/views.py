@@ -693,6 +693,13 @@ def api_consent(request):
         data = json.loads(request.body)
         consent_given = data.get('consent', False)
 
+        # Prevent anonymous users from enabling secure storage
+        if consent_given and not request.user.is_authenticated:
+            return JsonResponse({
+                'error': 'Authentication required',
+                'message': 'You must be logged in to enable secure storage. Please create an account or log in.'
+            }, status=403)
+
         prefs = _get_or_create_preferences(request)
         old_consent = prefs.data_consent
         prefs.data_consent = bool(consent_given)

@@ -1878,7 +1878,22 @@
             // Consent option selection
             consentOptions.forEach(option => {
                 option.addEventListener('click', function() {
-                    selectedConsent = this.dataset.consent === 'true';
+                    const wantsSecureMode = this.dataset.consent === 'true';
+                    
+                    // Check if user is authenticated when trying to enable secure mode
+                    const isAuthenticated = {{ is_authenticated|lower }};
+                    
+                    if (wantsSecureMode && !isAuthenticated) {
+                        // Anonymous user trying to enable secure mode - redirect to login
+                        hideConsentModal();
+                        if (confirm('Secure storage requires an account. Would you like to create an account or log in now?')) {
+                            window.location.href = '/login/';
+                        }
+                        return;
+                    }
+                    
+                    // Allow selection
+                    selectedConsent = wantsSecureMode;
                     updateConsentSelection();
                 });
             });
