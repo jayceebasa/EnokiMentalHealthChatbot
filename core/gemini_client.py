@@ -540,9 +540,10 @@ COPING_MAP = {
 
 def update_memory(existing: Optional[Dict[str, Any]], history: List[Dict], latest_user: str, latest_bot: str) -> Dict[str, Any]:
     existing = existing or {}
-    recent_texts = [item['text'] for item in history[-8:] if item.get('text')]
-    recent_texts.extend([latest_user, latest_bot])
+    recent_texts = [item['text'] for item in history[-8:] if item.get('text') and item.get('role') == 'user']
+    recent_texts.append(latest_user)  # Only add user's latest message, not bot's
     text_all = " ".join(recent_texts).lower()
+    
     if not existing.get("stressor"):
         if any(w in text_all for w in WORK_WORDS):
             existing["stressor"] = "work stress"
@@ -550,19 +551,24 @@ def update_memory(existing: Optional[Dict[str, Any]], history: List[Dict], lates
             existing["stressor"] = "school stress"
         elif any(w in text_all for w in FAMILY_WORDS):
             existing["stressor"] = "family stuff"
+    
     if not existing.get("motivation"):
         if "tuition" in text_all and ("sister" in text_all or "sibling" in text_all):
             existing["motivation"] = "helping family with school"
         elif any(w in text_all for w in FAMILY_MOTIVATION):
             existing["motivation"] = "looking out for family"
+    
     coping_set = set(existing.get("coping", []))
     for key, val in COPING_MAP.items():
-        if key in text_all:
+        # Use word boundary matching to avoid false positives
+        if re.search(r'\b' + re.escape(key) + r'\b', text_all):
             coping_set.add(val)
     existing["coping"] = list(coping_set)[:8]
+    
     if not existing.get("trajectory"):
         if any(w in text_all for w in FEELING_OVERWHELMED):
             existing["trajectory"] = "feeling drained and overwhelmed"
         elif any(w in text_all for w in FEELING_BETTER):
             existing["trajectory"] = "starting to feel better"
+    
     return existing

@@ -839,24 +839,29 @@ document.addEventListener("DOMContentLoaded", function () {
   // Load specific chat session
   async function loadChatSession(sessionId) {
     try {
-      // First, switch to this session on the backend
-      const switchRes = await fetch(`/api/chat/switch/${sessionId}/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]")?.value || "",
-        },
-        credentials: "same-origin",
-      });
+      // Show loading indicator
+      chatMessages.innerHTML = '<div style="text-align: center; padding: 2rem; color: #718096;">Loading chat...</div>';
+
+      // Make both API calls in parallel for faster loading
+      const [switchRes, sessionRes] = await Promise.all([
+        fetch(`/api/chat/switch/${sessionId}/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]")?.value || "",
+          },
+          credentials: "same-origin",
+        }),
+        fetch(`/api/chat/session/${sessionId}/`, {
+          credentials: "same-origin",
+        }),
+      ]);
+
       const switchData = await switchRes.json();
       if (!switchRes.ok || switchData.error) throw new Error(switchData.error || `HTTP ${switchRes.status}`);
 
-      // Now get the session details
-      const res = await fetch(`/api/chat/session/${sessionId}/`, {
-        credentials: "same-origin",
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+      const data = await sessionRes.json();
+      if (!sessionRes.ok || data.error) throw new Error(data.error || `HTTP ${sessionRes.status}`);
 
       // Clear current chat and load session messages
       chatMessages.innerHTML = "";
@@ -887,6 +892,7 @@ document.addEventListener("DOMContentLoaded", function () {
       console.log("Loaded chat session:", sessionId);
     } catch (err) {
       console.error("Error loading chat session:", err);
+      chatMessages.innerHTML = '<div style="text-align: center; padding: 2rem; color: #ff6b6b;">Failed to load chat session. Please try again.</div>';
       alert("Failed to load chat session. Please try again.");
     }
   }
