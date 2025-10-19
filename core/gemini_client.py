@@ -37,6 +37,28 @@ def add_breaks(text: str, max_sentences=4) -> str:
     return '\n\n'.join(paragraphs)
 
 
+def safe_get_response_text(response) -> str:
+    """Safely extract text from Gemini response, handling blocked/empty responses."""
+    try:
+        if hasattr(response, 'text') and response.text:
+            return response.text.strip()
+    except Exception as e:
+        logger.warning(f"Could not extract response.text: {str(e)}")
+    
+    # If response has candidates with content, try to extract from there
+    try:
+        if hasattr(response, 'candidates') and response.candidates:
+            candidate = response.candidates[0]
+            if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                parts = candidate.content.parts
+                if parts:
+                    return parts[0].text.strip()
+    except Exception as e:
+        logger.warning(f"Could not extract from candidates: {str(e)}")
+    
+    return ""
+
+
 def assess_response_type(user_text: str, emotions: List[Dict[str, float]]) -> str:
     """
     Use Gemini to intelligently determine response type, considering RoBERTa emotions.
@@ -280,9 +302,11 @@ Keep it warm, caring, and complete - no cut-off sentences. Reference their situa
                 },
                 request_options={"timeout": 10}
             )
-            reply = response.text.strip() if hasattr(
-                response, "text") and response.text else ""
-            return add_breaks(reply)
+            reply = safe_get_response_text(response)
+            if reply:
+                return add_breaks(reply)
+            else:
+                raise Exception("Empty response from Gemini")
         except Exception as e:
             logger.error(f"Crisis response generation failed: {str(e)}")
             fallback_msg = f"I'm really concerned about you right now. Your life has value, and there are people who want to help you through this.\n\n{crisis_resources_text}\n\nPlease reach out to one of these resources right now. You don't have to face this alone."
@@ -328,9 +352,11 @@ Keep it warm, gentle, and complete - no cut-off sentences. Reference their loss 
                 },
                 request_options={"timeout": 10}
             )
-            grief_reply = response.text.strip() if hasattr(
-                response, "text") and response.text else ""
-            return add_breaks(grief_reply)
+            grief_reply = safe_get_response_text(response)
+            if grief_reply:
+                return add_breaks(grief_reply)
+            else:
+                raise Exception("Empty response from Gemini")
         except Exception as e:
             logger.error(f"Grief response generation failed: {str(e)}")
             fallback_grief = f"I'm so sorry for your loss. The love you had is real and precious, and grief is the price we pay for that love. I'm here with you through this."
@@ -376,9 +402,11 @@ Keep it warm, calming, and complete - no cut-off sentences. Reference their situ
                 },
                 request_options={"timeout": 10}
             )
-            panic_reply = response.text.strip() if hasattr(
-                response, "text") and response.text else ""
-            return add_breaks(panic_reply)
+            panic_reply = safe_get_response_text(response)
+            if panic_reply:
+                return add_breaks(panic_reply)
+            else:
+                raise Exception("Empty response from Gemini")
         except Exception as e:
             logger.error(f"Panic response generation failed: {str(e)}")
             fallback_panic = f"You're not alone. I'm here with you. Breathe in slowly—1, 2, 3, 4. Hold—1, 2, 3, 4. Out—1, 2, 3, 4.\n\nYou're safe. This will pass."
@@ -433,9 +461,11 @@ Keep it warm, caring, and concise. Complete your thoughts - no cut-off sentences
                 },
                 request_options={"timeout": 10}
             )
-            distress_reply = response.text.strip() if hasattr(
-                response, "text") and response.text else ""
-            return add_breaks(distress_reply)
+            distress_reply = safe_get_response_text(response)
+            if distress_reply:
+                return add_breaks(distress_reply)
+            else:
+                raise Exception("Empty response from Gemini")
         except Exception as e:
             logger.error(f"High distress response generation failed: {str(e)}")
             return add_breaks("I hear you, and I'm here for you. What you're feeling is real and valid. I'm listening.")
@@ -480,9 +510,11 @@ Keep it natural, warm, and complete - no cut-off sentences. Remember what they'v
                 },
                 request_options={"timeout": 10}
             )
-            reply = response.text.strip() if hasattr(
-                response, "text") and response.text else ""
-            return add_breaks(reply)
+            reply = safe_get_response_text(response)
+            if reply:
+                return add_breaks(reply)
+            else:
+                raise Exception("Empty response from Gemini")
         except Exception as e:
             logger.error(f"Normal response generation failed: {str(e)}")
             return add_breaks(
