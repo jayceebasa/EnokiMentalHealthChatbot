@@ -895,7 +895,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Format date for display
   function formatDate(dateStr) {
+    // Handle null, undefined, or empty date strings
+    if (!dateStr) return "";
+    
     const date = new Date(dateStr);
+    
+    // Handle invalid dates
+    if (isNaN(date.getTime())) return "";
+    
     const now = new Date();
     const diffMs = now - date;
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
