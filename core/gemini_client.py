@@ -177,21 +177,53 @@ def generate_reply(
     # STEP 1: Use Gemini to assess crisis risk FIRST (before any other checks)
     is_crisis, risk_type = assess_crisis_risk(user_text)
     
-    # STEP 2: If Gemini detects IMMEDIATE_DANGER, show hotlines immediately
+    # STEP 2: If Gemini detects IMMEDIATE_DANGER, let it respond with crisis resources
     if is_crisis or risk_type == "immediate_danger":
         logger.warning(f"🚨 CRISIS DETECTED by Gemini - Message: {user_text[:100]}")
         
-        crisis_message = "I'm really concerned about you right now. Your life has value, and there are people who want to help.\n\n"
-        crisis_message += "**🆘 IMMEDIATE HELP - PHILIPPINES CRISIS HOTLINES:**\n\n"
+        # Format crisis resources for the prompt
+        crisis_resources_text = "**🆘 IMMEDIATE HELP - PHILIPPINES CRISIS HOTLINES:**\n\n"
         for hotline in PHILIPPINE_CRISIS_RESOURCES["national_hotlines"]:
-            crisis_message += f"• {hotline}\n"
-        crisis_message += f"\n• {PHILIPPINE_CRISIS_RESOURCES['emergency']}\n\n"
-        crisis_message += "**Regional Support:**\n"
+            crisis_resources_text += f"• {hotline}\n"
+        crisis_resources_text += f"\n• {PHILIPPINE_CRISIS_RESOURCES['emergency']}\n\n"
+        crisis_resources_text += "**Regional Support:**\n"
         for hotline in PHILIPPINE_CRISIS_RESOURCES["regional_hotlines"]:
-            crisis_message += f"• {hotline}\n"
-        crisis_message += "\n**These are all FREE, confidential, and available 24/7.** Please reach out to any of them right now - you don't have to face this alone.\n\n"
-        crisis_message += "You matter. Your feelings are valid, but there are people trained to help you through this safely. I'm here with you too, but please contact one of these crisis lines for immediate professional support."
-        return add_breaks(crisis_message)
+            crisis_resources_text += f"• {hotline}\n"
+        crisis_resources_text += "\n**These are all FREE, confidential, and available 24/7.**"
+        
+        crisis_prompt = f'''You are Enoki, a compassionate mental health companion. The user has just shared something concerning that suggests they may be in crisis or experiencing thoughts of self-harm.
+
+User message: "{user_text}"
+
+Your task:
+1. Respond with genuine care and concern
+2. Validate their feelings
+3. Emphasize that their life matters and help is available
+4. Include the Philippine crisis resources below in your response
+5. Keep your tone warm, supportive, and non-judgmental
+6. Encourage them to reach out for professional help
+
+Crisis Resources to include in your response:
+{crisis_resources_text}
+
+Respond naturally and warmly, as if you're genuinely concerned about them. Make sure to include all the crisis resources above in your response. End by emphasizing that they're not alone and professional help is available.'''
+
+        try:
+            response = model.generate_content(
+                crisis_prompt,
+                generation_config={
+                    "temperature": 0.7,  # Slightly higher for more natural response
+                    "max_output_tokens": 500
+                },
+                request_options={"timeout": 10}
+            )
+            reply = response.text.strip() if hasattr(response, "text") and response.text else ""
+            return add_breaks(reply)
+        except Exception as e:
+            logger.error(f"Crisis response generation failed: {str(e)}")
+            # Fallback to supportive response with resources
+            fallback_msg = f"I'm really concerned about you right now. Your life has value, and there are people who want to help you through this.\n\n{crisis_resources_text}\n\nPlease reach out to one of these resources right now. You don't have to face this alone, and there are trained professionals ready to support you."
+            return add_breaks(fallback_msg)
     
     # Continue with normal conversation flow
     recent_history = history[-12:]

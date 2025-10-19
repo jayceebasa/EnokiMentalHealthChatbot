@@ -4,6 +4,7 @@ from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.contrib import messages
 from django import forms
 from django.contrib.auth.models import User
+from django.contrib.messages import constants as messages_constants
 from .models import UserPreference
 
 
@@ -93,7 +94,7 @@ def register_view(request):
             
             # Automatically log the user in after registration with explicit backend
             login(request, user, backend='django.contrib.auth.backends.ModelBackend')
-            messages.success(request, f'Welcome, {user.username}! Your account has been created.')
+            messages.success(request, f'Welcome, {user.username}! Your account has been created.', extra_tags='success')
             return redirect('chat')
         else:
             messages.error(request, 'Please correct the errors below.')
@@ -119,7 +120,7 @@ def login_view(request):
             
             # Log in with explicit backend
             login(request, user, backend='django.contrib.auth.backends.ModelBackend')
-            messages.success(request, f'Welcome back, {user.username}!')
+            messages.success(request, f'Welcome back, {user.username}!', extra_tags='success')
             # Redirect to next page if specified, otherwise to chat
             next_page = request.GET.get('next', 'chat')
             return redirect(next_page)
@@ -132,7 +133,13 @@ def login_view(request):
 def logout_view(request):
     """Handle user logout"""
     logout(request)
-    messages.success(request, 'You have been logged out successfully.')
+    # Clear the session to remove any cached user data
+    request.session.flush()
+    # Clear all messages from storage
+    storage = messages.get_messages(request)
+    storage.used = True
+    # Add fresh logout message
+    messages.success(request, 'You have been logged out successfully.', extra_tags='success')
     return redirect('login')
 
 
