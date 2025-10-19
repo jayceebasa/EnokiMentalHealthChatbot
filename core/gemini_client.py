@@ -288,8 +288,7 @@ def generate_reply(
             f"It's so hard to lose someone who means so much. The love you have for {pet_name} is real and precious. Grief can feel like too much sometimes. I'm here and holding space for you."
         )
 
-    if any(greet in user_lower for greet in ["hi", "hello", "hey", "what's up", "hi there"]):
-        return add_breaks(random.choice(friendly_greets))
+    # Removed hardcoded greeting fallback - let Gemini handle all responses with emotional context
 
     # Conversation logic with tone applied
     smalltalk_examples = [
