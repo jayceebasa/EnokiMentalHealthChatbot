@@ -28,6 +28,18 @@ DEBUG = os.getenv("DEBUG", "0") == "1"
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost").split(",")
 
+# CSRF Trusted Origins for custom domains and Railway
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.railway.app',
+    'https://*.up.railway.app',
+    'https://enokiai.up.railway.app',
+]
+
+# Add any additional trusted origins from environment variable
+additional_origins = os.getenv("CSRF_TRUSTED_ORIGINS", "")
+if additional_origins:
+    CSRF_TRUSTED_ORIGINS.extend(additional_origins.split(","))
+
 
 # Application definition
 
