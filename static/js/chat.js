@@ -287,15 +287,7 @@ document.addEventListener("DOMContentLoaded", function () {
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
-  function renderEmotions(emotions) {
-    if (!emotions || !emotions.length) return "";
-    return `<div class="message-emotions">${emotions
-      .slice(0, 3)
-      .map((e) => `<span class="emotion-pill">${e.label} ${(e.score || 0).toFixed(2)}</span>`)
-      .join("")}</div>`;
-  }
-
-  function appendMessage({ sender, text, emotions = null, timeStr = null }) {
+  function appendMessage({ sender, text, timeStr = null }) {
     // Only clear intro message when user sends their first message
     if (sender === "user") {
       clearIntroMessage();
@@ -308,7 +300,6 @@ document.addEventListener("DOMContentLoaded", function () {
     content.innerHTML = `
             <div class="sender-name">${isUser ? "User" : "EnokiAI"}</div>
             <div class="message-text"></div>
-            ${renderEmotions(emotions)}
             <div class="message-time">${timeStr || fmtTime()}</div>
         `;
     // Convert newlines to <br> tags and set innerHTML with escaped HTML
@@ -491,18 +482,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
       // Hide thinking indicator
       hideThinkingIndicator();
-
-      // Show user emotions (from service) on the last user message bubble
-      const lastUser = chatMessages.querySelector(".chat-message.user-chat:last-of-type");
-      if (lastUser && data.emotions && data.emotions.length) {
-        const emoDiv = document.createElement("div");
-        emoDiv.className = "message-emotions";
-        emoDiv.innerHTML = data.emotions
-          .slice(0, 3)
-          .map((e) => `<span class='emotion-pill'>${e.label} ${(e.score || 0).toFixed(2)}</span>`)
-          .join("");
-        lastUser.querySelector(".message-content").appendChild(emoDiv);
-      }
 
       appendMessage({ sender: "bot", text: data.reply });
 
