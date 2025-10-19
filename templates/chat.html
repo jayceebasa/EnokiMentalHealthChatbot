@@ -1,25 +1,24 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
-<head>  
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>EnokiAI Chat</title>
-    <link rel="icon" type="image/png" href="{% static 'img/EnokIcon.png' %}">
-    <link rel="stylesheet" href="{% static 'css/chat.css' %}">
+    <link rel="icon" type="image/png" href="{% static 'img/EnokIcon.png' %}" />
+    <link rel="stylesheet" href="{% static 'css/chat.css' %}" />
     <script>
-        // Pass Django context to JavaScript
-        window.isAuthenticated = {{ is_authenticated|lower }};
+      // Pass Django context to JavaScript
     </script>
-</head>
-<body>
+  </head>
+  <body>
     <!-- Hamburger Menu Button (Mobile Only) -->
     <button class="hamburger-menu" id="hamburger-btn">
-        <div class="hamburger-icon">
-            <span></span>
-            <span></span>
-            <span></span>
-        </div>
+      <div class="hamburger-icon">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
     </button>
 
     <!-- Mobile Menu Overlay -->
@@ -27,148 +26,189 @@
 
     <!-- Mobile Menu -->
     <div class="mobile-menu" id="mobile-menu">
-        <div class="mobile-menu-items">
-            <button class="mobile-menu-item" id="mobile-new-chat">
-                <span>✨</span>
-                <span>New Chat</span>
-            </button>
-            {% if is_authenticated %}
-            <div class="mobile-menu-item" style="background: linear-gradient(135deg, #4ecdc4 0%, #45b7d1 100%); cursor: default;">
-                <span>👤</span>
-                <span>{{ request.user.username }}</span>
-            </div>
-            {% endif %}
-            <button class="mobile-menu-item" id="mobile-consent">
-                <span>🔒</span>
-                <span id="mobile-consent-text">Storage Settings</span>
-            </button>
-            <button class="mobile-menu-item" id="mobile-history">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3Z"/>
-                </svg>
-                <span>Chat History</span>
-            </button>
-            <button class="mobile-menu-item" id="mobile-settings">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12A3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97c0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1c0 .33.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66Z"/>
-                </svg>
-                <span>Settings</span>
-            </button>
+      <div class="mobile-menu-items">
+        <button class="mobile-menu-item" id="mobile-new-chat">
+          <span>✨</span>
+          <span>New Chat</span>
+        </button>
+        {% if is_authenticated %}
+        <div class="mobile-menu-item" style="background: linear-gradient(135deg, #4ecdc4 0%, #45b7d1 100%); cursor: default">
+          <span>👤</span>
+          <span>{{ request.user.username }}</span>
         </div>
+        {% endif %}
+        <button class="mobile-menu-item" id="mobile-consent">
+          <span>🔒</span>
+          <span id="mobile-consent-text">Storage Settings</span>
+        </button>
+        <button class="mobile-menu-item" id="mobile-history">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3Z" />
+          </svg>
+          <span>Chat History</span>
+        </button>
+        <button class="mobile-menu-item" id="mobile-settings">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 15.5A3.5 3.5 0 0 1 8.5 12A3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97c0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1c0 .33.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66Z" />
+          </svg>
+          <span>Settings</span>
+        </button>
+      </div>
     </div>
 
     <div class="chat-container">
-        <div class="header">
-            <div class="header-left">
-                <h1><img src="{% static 'img/enokiLogo.png' %}" alt="Enoki Logo" style="height: 80px; vertical-align: middle; margin-right: 0.5rem;"></h1>
-                <button class="new-chat-btn" id="new-chat-btn">
-                    <span>✨</span>
-                    New Chat
-                </button>
-            </div>
-            <div class="header-right">
-                {% if is_authenticated %}
-                <div class="user-info" style="background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 12px; padding: 0.5rem 0.75rem; color: white; font-size: 0.9rem; margin-right: 0.5rem;">
-                    👤 {{ request.user.username }}
+      <div class="header">
+        <div class="header-left">
+            <h1><img src="{% static 'img/enokiLogo.png' %}" alt="Enoki Logo" style="height: 80px; vertical-align: middle; margin-right: 0.5rem; margin-left: 50px;" /></h1>
+            <style>
+            @media (max-width: 864px) {
+              .header-left h1 img {
+              margin-left: 0 !important;
+              }
+            }
+            </style>
+          <button class="new-chat-btn" id="new-chat-btn">
+            <span>✨</span>
+            New Chat
+          </button>
+        </div>
+        <div class="header-right">
+          {% if is_authenticated %}
+          <div
+            class="user-info"
+            style="
+              background: rgba(255, 255, 255, 0.2);
+              backdrop-filter: blur(10px);
+              border: 1px solid rgba(255, 255, 255, 0.3);
+              border-radius: 12px;
+              padding: 0.5rem 0.75rem;
+              color: white;
+              font-size: 0.9rem;
+              margin-right: 0.5rem;
+            ">
+            👤 {{ request.user.username }}
+          </div>
+          {% endif %}
+          <div class="consent-status" id="consent-status" title="Click to manage data storage preferences">
+            <span id="consent-indicator">🔍 Checking...</span>
+          </div>
+          <button class="history-btn" id="history-toggle" title="View your past conversations">
+            <svg class="history-icon" viewBox="0 0 24 24">
+              <path
+                d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3Z" />
+            </svg>
+            <span>History</span>
+          </button>
+          <button class="settings-button" id="settings-toggle">
+            <svg class="settings-icon" viewBox="0 0 24 24">
+              <path
+                d="M12 15.5A3.5 3.5 0 0 1 8.5 12A3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97c0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1c0 .33.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66Z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Ephemeral Mode Warning -->
+      <div class="ephemeral-warning" id="ephemeral-warning">
+        🔒 <strong>Ephemeral Mode:</strong> Your conversation will be lost when you close the browser.
+        <button
+          id="enable-storage-btn"
+          title="{% if not is_authenticated %}Login to enable data storage{% else %}Enable data storage for conversation continuity{% endif %}">
+          {% if not is_authenticated %}Login to Enable Storage{% else %}Enable Storage{% endif %}
+        </button>
+      </div>
+
+      <div class="chat-content-wrapper">
+        <div class="main-chat-card">
+          <div class="chat-messages" id="chat-messages">
+            {% for m in messages %}
+            <div class="chat-message {% if m.sender == 'user' %}user-chat{% else %}bot-chat{% endif %}">
+              <div class="message-content">
+                <div class="sender-name">{% if m.sender == 'user' %}User{% else %}EnokiAI{% endif %}</div>
+                <div class="message-text">{{ m.plaintext }}</div>
+                {% if m.emotions %}
+                <div class="message-emotions">
+                  {% for emo in m.emotions|slice:":3" %}
+                  <span class="emotion-pill">{{ emo.label }} {{ emo.score|floatformat:2 }}</span>
+                  {% endfor %}
                 </div>
                 {% endif %}
-                <div class="consent-status" id="consent-status" title="Click to manage data storage preferences">
-                    <span id="consent-indicator">🔍 Checking...</span>
-                </div>
-                <button class="history-btn" id="history-toggle" title="View your past conversations">
-                    <svg class="history-icon" viewBox="0 0 24 24">
-                        <path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3Z"/>
-                    </svg>
-                    <span>History</span>
-                </button>
-                <button class="settings-button" id="settings-toggle">
-                    <svg class="settings-icon" viewBox="0 0 24 24">
-                        <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12A3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97c0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1c0 .33.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66Z"/>
-                    </svg>
-                </button>
+                <div class="message-time">{{ m.created_at }}</div>
+              </div>
             </div>
+            {% empty %}
+            <div class="intro-message">
+              <div class="intro-content">
+                <div class="intro-header">
+                  <span class="intro-avatar">🍄</span>
+                  <span class="intro-name">EnokiAI</span>
+                </div>
+                <div class="intro-text">
+                  Hello! I'm EnokiAI, your mental health companion. I'm here to listen, support, and help you navigate your thoughts and feelings in a safe,
+                  non-judgmental space.
+                </div>
+                <div class="intro-features">
+                  <h4>What I can help with:</h4>
+                  <ul>
+                    <li>Active listening and emotional support</li>
+                    <li>Stress management techniques</li>
+                    <li>Mindfulness and coping strategies</li>
+                    <li>General mental wellness guidance</li>
+                  </ul>
+                </div>
+                <div
+                  class="intro-text"
+                  style="
+                    margin-top: 1rem;
+                    padding: 0.75rem;
+                    background: linear-gradient(135deg, rgba(136, 183, 123, 0.1) 0%, rgba(122, 176, 104, 0.1) 100%);
+                    border-radius: 8px;
+                    border-left: 3px solid #88b77b;
+                    font-size: 0.9rem;
+                    color: #2d3748;
+                  ">
+                  💡 <strong>Tip:</strong> You can adjust my conversation tone anytime by clicking the settings icon ⚙️ in the top right corner!
+                </div>
+                <div class="intro-text" style="margin-top: 1rem; font-style: italic; font-size: 0.9rem; color: #718096">
+                  Remember: I'm here to support you, but I'm not a replacement for professional mental health care. If you're experiencing a crisis, please
+                  reach out to a mental health professional or crisis helpline.
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="message-form">
+            <textarea
+              name="message"
+              placeholder="Type your message here..."
+              required
+              class="message-input"
+              rows="1"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();handleSendMessage();return false;}"></textarea>
+            <button type="button" class="send-btn" onclick="handleSendMessage()" id="send-btn">Send</button>
+          </div>
         </div>
 
-        <!-- Ephemeral Mode Warning -->
-        <div class="ephemeral-warning" id="ephemeral-warning">
-            🔒 <strong>Ephemeral Mode:</strong> Your conversation will be lost when you close the browser.
-            <button id="enable-storage-btn" title="{% if not is_authenticated %}Login to enable data storage{% else %}Enable data storage for conversation continuity{% endif %}">
-                {% if not is_authenticated %}Login to Enable Storage{% else %}Enable Storage{% endif %}
-            </button>
+        <!-- Chat History Panel -->
+        <div class="chat-history-panel" id="history-panel">
+          <div class="history-header">
+            <h2 class="history-title">📚 Chat History</h2>
+            <button class="close-history" id="close-history">&times;</button>
+          </div>
+
+          <div id="chat-sessions-list">
+            <!-- Chat sessions will be loaded here -->
+          </div>
+
+          <button class="new-chat-btn" id="new-chat-btn-history" style="width: 100%; margin-top: auto">
+            <span>✨</span>
+            <span>New Chat</span>
+          </button>
         </div>
-
-        <div class="chat-content-wrapper">
-            <div class="main-chat-card">
-            <div class="chat-messages" id="chat-messages">
-                {% for m in messages %}
-                    <div class="chat-message {% if m.sender == 'user' %}user-chat{% else %}bot-chat{% endif %}">
-                        <div class="message-content">
-                            <div class="sender-name">{% if m.sender == 'user' %}User{% else %}EnokiAI{% endif %}</div>
-                            <div class="message-text">{{ m.plaintext }}</div>
-                            {% if m.emotions %}
-                                <div class="message-emotions">
-                                    {% for emo in m.emotions|slice:":3" %}
-                                        <span class="emotion-pill">{{ emo.label }} {{ emo.score|floatformat:2 }}</span>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                            <div class="message-time">{{ m.created_at }}</div>
-                        </div>
-                    </div>
-                {% empty %}
-                    <div class="intro-message">
-                        <div class="intro-content">
-                            <div class="intro-header">
-                                <span class="intro-avatar">🍄</span>
-                                <span class="intro-name">EnokiAI</span>
-                            </div>
-                            <div class="intro-text">
-                                Hello! I'm EnokiAI, your mental health companion. I'm here to listen, support, and help you navigate your thoughts and feelings in a safe, non-judgmental space.
-                            </div>
-                            <div class="intro-features">
-                                <h4>What I can help with:</h4>
-                                <ul>
-                                    <li>Active listening and emotional support</li>
-                                    <li>Stress management techniques</li>
-                                    <li>Mindfulness and coping strategies</li>
-                                    <li>General mental wellness guidance</li>
-                                </ul>
-                            </div>
-                            <div class="intro-text" style="margin-top: 1rem; padding: 0.75rem; background: linear-gradient(135deg, rgba(136, 183, 123, 0.1) 0%, rgba(122, 176, 104, 0.1) 100%); border-radius: 8px; border-left: 3px solid #88B77B; font-size: 0.9rem; color: #2d3748;">
-                                💡 <strong>Tip:</strong> You can adjust my conversation tone anytime by clicking the settings icon ⚙️ in the top right corner!
-                            </div>
-                            <div class="intro-text" style="margin-top: 1rem; font-style: italic; font-size: 0.9rem; color: #718096;">
-                                Remember: I'm here to support you, but I'm not a replacement for professional mental health care. If you're experiencing a crisis, please reach out to a mental health professional or crisis helpline.
-                            </div>
-                        </div>
-                    </div>
-                {% endfor %}
-            </div>
-
-            <div class="message-form">
-                <textarea name="message" placeholder="Type your message here..." required class="message-input" rows="1" 
-                    onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();handleSendMessage();return false;}"></textarea>
-                <button type="button" class="send-btn" onclick="handleSendMessage()" id="send-btn">Send</button>
-            </div>
-            </div>
-
-            <!-- Chat History Panel -->
-            <div class="chat-history-panel" id="history-panel">
-                <div class="history-header">
-                    <h2 class="history-title">📚 Chat History</h2>
-                    <button class="close-history" id="close-history">&times;</button>
-                </div>
-                
-                <div id="chat-sessions-list">
-                    <!-- Chat sessions will be loaded here -->
-                </div>
-
-                <button class="new-chat-btn" id="new-chat-btn-history" style="width: 100%; margin-top: auto;">
-                    <span>✨</span>
-                    <span>New Chat</span>
-                </button>
-            </div>
-        </div>
+      </div>
     </div>
 
     <!-- Overlay for history panel (mobile only) -->
@@ -212,34 +252,34 @@
     <!-- Consent Modal -->
     <div class="settings-overlay" id="consent-overlay"></div>
     <div class="consent-modal" id="consent-modal">
-        <h3>🔒 Data Storage Preferences</h3>
-        <p>Choose how you'd like your conversations to be handled:</p>
-        
-        <div class="consent-options">
-            <div class="consent-option" data-consent="true" id="consent-enable">
-                <h4>🛡️ Enable Secure Storage</h4>
-                <p>Store conversations securely with encryption. Your messages will be saved for continuity across sessions, and you'll get better AI responses with context.</p>
-            </div>
-            
-            <div class="consent-option" data-consent="false" id="consent-disable">
-                <h4>👤 Ephemeral Mode</h4>
-                <p>Keep conversations temporary in your browser only. Messages are lost when you close the browser, but no personal data is stored on our servers.</p>
-            </div>
+      <h3>🔒 Data Storage Preferences</h3>
+      <p>Choose how you'd like your conversations to be handled:</p>
+
+      <div class="consent-options">
+        <div class="consent-option" data-consent="true" id="consent-enable">
+          <h4>🛡️ Enable Secure Storage</h4>
+          <p>
+            Store conversations securely with encryption. Your messages will be saved for continuity across sessions, and you'll get better AI responses with
+            context.
+          </p>
         </div>
-        
-        <div class="consent-buttons">
-            <button class="consent-btn primary" id="confirm-consent">Apply Setting</button>
-            <button class="consent-btn secondary" id="cancel-consent">Cancel</button>
+
+        <div class="consent-option" data-consent="false" id="consent-disable">
+          <h4>👤 Ephemeral Mode</h4>
+          <p>Keep conversations temporary in your browser only. Messages are lost when you close the browser, but no personal data is stored on our servers.</p>
         </div>
-        
-        <p style="font-size: 0.8rem; color: #718096; text-align: center; margin-top: 1rem;">
-            You can change this setting anytime by clicking the privacy indicator in the header.
-        </p>
+      </div>
+
+      <div class="consent-buttons">
+        <button class="consent-btn primary" id="confirm-consent">Apply Setting</button>
+        <button class="consent-btn secondary" id="cancel-consent">Cancel</button>
+      </div>
+
+      <p style="font-size: 0.8rem; color: #718096; text-align: center; margin-top: 1rem">
+        You can change this setting anytime by clicking the privacy indicator in the header.
+      </p>
     </div>
 
     <script src="{% static 'js/chat.js' %}"></script>
-</body>
-</html>
-
-</body>
+  </body>
 </html>
