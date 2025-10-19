@@ -3,6 +3,6 @@ builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "gunicorn enoki.wsgi:application --bind 0.0.0.0:$PORT"
+startCommand = "sh -c 'gunicorn enoki.wsgi:application --bind 0.0.0.0:${PORT:-8000}'"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 10
