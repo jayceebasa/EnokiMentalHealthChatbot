@@ -325,10 +325,15 @@
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.3);
             border-radius: 12px;
-            padding: 0.75rem;
+            padding: 0.75rem 1rem;
             cursor: pointer;
             transition: all 0.3s ease;
             color: white;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
         .history-btn:hover {
@@ -337,8 +342,8 @@
         }
 
         .history-icon {
-            width: 24px;
-            height: 24px;
+            width: 20px;
+            height: 20px;
             fill: currentColor;
         }
 
@@ -1141,6 +1146,14 @@
             .header-right {
                 display: none;
             }
+
+            .history-btn span {
+                display: none;
+            }
+
+            .history-btn {
+                padding: 0.75rem;
+            }
             
             .header h1 {
                 font-size: 1.5rem;
@@ -1541,10 +1554,11 @@
                 <div class="consent-status" id="consent-status" title="Click to manage data storage preferences">
                     <span id="consent-indicator">🔍 Checking...</span>
                 </div>
-                <button class="history-btn" id="history-toggle">
+                <button class="history-btn" id="history-toggle" title="View your past conversations">
                     <svg class="history-icon" viewBox="0 0 24 24">
                         <path d="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3Z"/>
                     </svg>
+                    <span>History</span>
                 </button>
                 <button class="settings-button" id="settings-toggle">
                     <svg class="settings-icon" viewBox="0 0 24 24">
