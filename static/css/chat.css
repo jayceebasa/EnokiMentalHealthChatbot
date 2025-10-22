@@ -1663,3 +1663,266 @@ input[type="text"]:focus {
     display: none;
   }
 }
+
+/* ============================================
+   NOTIFICATION TOAST STYLES
+   ============================================ */
+.notification-container {
+  position: fixed;
+  top: 2rem;
+  right: 2rem;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  pointer-events: none;
+}
+
+.toast-notification {
+  background: white;
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  min-width: 300px;
+  max-width: 400px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  animation: slideInRight 0.3s ease;
+  pointer-events: auto;
+  border-left: 4px solid transparent;
+}
+
+.toast-notification.success {
+  border-left-color: #10b981;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+}
+
+.toast-notification.success .toast-icon {
+  color: #10b981;
+  font-size: 1.5rem;
+}
+
+.toast-notification.error {
+  border-left-color: #ef4444;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+}
+
+.toast-notification.error .toast-icon {
+  color: #ef4444;
+  font-size: 1.5rem;
+}
+
+.toast-notification.info {
+  border-left-color: #3b82f6;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+}
+
+.toast-notification.info .toast-icon {
+  color: #3b82f6;
+  font-size: 1.5rem;
+}
+
+.toast-notification.warning {
+  border-left-color: #f59e0b;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+}
+
+.toast-notification.warning .toast-icon {
+  color: #f59e0b;
+  font-size: 1.5rem;
+}
+
+.toast-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.toast-title {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.toast-message {
+  font-size: 0.9rem;
+  color: #6b7280;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  font-size: 1.25rem;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.toast-close:hover {
+  color: #4b5563;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+}
+
+.toast-notification.removing {
+  animation: slideOutRight 0.3s ease;
+}
+
+/* ============================================
+   DELETE CONFIRMATION MODAL STYLES
+   ============================================ */
+.delete-confirm-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  border-radius: 16px;
+  padding: 0;
+  z-index: 9999;
+  min-width: 350px;
+  max-width: 450px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  display: none;
+  animation: modalScaleIn 0.3s ease;
+}
+
+.delete-confirm-modal.show {
+  display: block;
+}
+
+.delete-modal-content {
+  padding: 2rem;
+  text-align: center;
+}
+
+.delete-modal-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  animation: wobble 0.6s ease;
+}
+
+.delete-confirm-modal h3 {
+  font-size: 1.5rem;
+  color: #1f2937;
+  margin-bottom: 0.75rem;
+}
+
+.delete-confirm-modal p {
+  color: #6b7280;
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+.delete-modal-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.delete-btn-cancel,
+.delete-btn-confirm {
+  padding: 0.75rem 2rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+  min-width: 120px;
+}
+
+.delete-btn-cancel {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.delete-btn-cancel:hover {
+  background: #d1d5db;
+  transform: translateY(-2px);
+}
+
+.delete-btn-confirm {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+}
+
+.delete-btn-confirm:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);
+}
+
+.delete-btn-confirm:active {
+  transform: translateY(0);
+}
+
+@keyframes modalScaleIn {
+  from {
+    transform: translate(-50%, -50%) scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes wobble {
+  0%, 100% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.1) rotateZ(-5deg);
+  }
+  75% {
+    transform: scale(1.1) rotateZ(5deg);
+  }
+}
+
+/* ============================================
+   MOBILE RESPONSIVE
+   ============================================ */
+@media (max-width: 600px) {
+  .notification-container {
+    top: 1rem;
+    right: 1rem;
+    left: 1rem;
+  }
+
+  .toast-notification {
+    min-width: auto;
+    max-width: 100%;
+  }
+
+  .delete-confirm-modal {
+    min-width: 90%;
+    max-width: 90%;
+  }
+}
+

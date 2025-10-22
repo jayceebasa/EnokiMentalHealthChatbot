@@ -243,6 +243,23 @@
         {% endif %}
     </div>
 
+    <!-- Notification Toast -->
+    <div class="notification-container" id="notification-container"></div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="settings-overlay" id="delete-confirm-overlay"></div>
+    <div class="delete-confirm-modal" id="delete-confirm-modal">
+      <div class="delete-modal-content">
+        <div class="delete-modal-icon">🗑️</div>
+        <h3>Delete Chat?</h3>
+        <p id="delete-confirm-message">Are you sure you want to delete this chat? This action cannot be undone.</p>
+        <div class="delete-modal-buttons">
+          <button class="delete-btn-cancel" id="delete-confirm-cancel">Cancel</button>
+          <button class="delete-btn-confirm" id="delete-confirm-proceed">Delete</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Consent Modal -->
     <div class="settings-overlay" id="consent-overlay"></div>
     <div class="consent-modal" id="consent-modal">
