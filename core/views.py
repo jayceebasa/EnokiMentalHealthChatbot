@@ -571,6 +571,11 @@ def chat(request):
             session.save(update_fields=["summary", "memory"])
 
     recent_messages = session.messages.all().select_related("session")[:50]
+    
+    # In anonymous mode (no consent), don't show database messages server-side
+    # Messages are stored in browser session instead and managed client-side
+    if not _check_consent(prefs):
+        recent_messages = []
 
     return render(request, "chat.html", {
         "user_message": user_message,
