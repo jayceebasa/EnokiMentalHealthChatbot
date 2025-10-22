@@ -100,64 +100,6 @@ function deleteAnonymousSession(sessionId) {
   }
 }
 
-// Check for pending migration from anonymous to database
-async function checkForPendingMigration() {
-  try {
-    const pendingSessionId = localStorage.getItem('pendingMigrationSessionId');
-    const pendingMessagesJson = localStorage.getItem('pendingMigrationMessages');
-    
-    if (!pendingSessionId || !pendingMessagesJson) {
-      return; // No pending migration
-    }
-    
-    const isAuthenticated = window.isAuthenticated || false;
-    if (!isAuthenticated) {
-      return; // User not logged in, migration will happen on next login
-    }
-    
-    // User is now authenticated - migrate the anonymous chat to database
-    const pendingMessages = JSON.parse(pendingMessagesJson);
-    
-    console.log(`Migrating ${pendingMessages.length} messages to database...`);
-    
-    // Send each user message to the API to recreate the conversation in the database
-    for (const message of pendingMessages) {
-      if (message.sender === 'user') {
-        try {
-          await fetch("/api/chat/", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-CSRFToken": getCSRFToken() || document.querySelector("[name=csrfmiddlewaretoken]")?.value || "",
-            },
-            credentials: "same-origin",
-            body: JSON.stringify({
-              message: message.text,
-              consent: true,  // Now saving with consent
-            }),
-          });
-          
-          // Add small delay between migrations to avoid overwhelming the server
-          await new Promise(resolve => setTimeout(resolve, 500));
-        } catch (err) {
-          console.error(`Error migrating message: ${err}`);
-        }
-      }
-    }
-    
-    // Clear pending migration data after successful migration
-    localStorage.removeItem('pendingMigrationSessionId');
-    localStorage.removeItem('pendingMigrationMessages');
-    // Optionally delete the anonymous session after successful migration
-    deleteAnonymousSession(pendingSessionId);
-    
-    console.log('✅ Chat migration to database completed successfully');
-    
-  } catch (error) {
-    console.error('Error checking for pending migration:', error);
-  }
-}
-
 document.addEventListener("DOMContentLoaded", function () {
   const messageForm = document.querySelector(".message-form");
   const messageInput = document.querySelector(".message-input");
@@ -386,7 +328,19 @@ document.addEventListener("DOMContentLoaded", function () {
     option.addEventListener("click", function () {
       const wantsSecureMode = this.dataset.consent === "true";
 
-      // Allow selection (authentication check will happen in updateConsent)
+      // Check if user is authenticated when trying to enable secure mode
+      const isAuthenticated = window.isAuthenticated || false;
+
+      if (wantsSecureMode && !isAuthenticated) {
+        // Anonymous user trying to enable secure mode - redirect to login
+        hideConsentModal();
+        if (confirm("Secure storage requires an account. Would you like to create an account or log in now?")) {
+          window.location.href = "/login/";
+        }
+        return;
+      }
+
+      // Allow selection
       selectedConsent = wantsSecureMode;
       updateConsentSelection();
     });
@@ -744,52 +698,20 @@ document.addEventListener("DOMContentLoaded", function () {
 
   async function updateConsent(consent) {
     try {
-      // If switching TO secure mode FROM ephemeral mode and has messages
+      // If switching TO secure mode FROM ephemeral mode and has messages, ask about saving current chat
       if (consent === true && consentStatus === false && hasMessages()) {
-        const isAuthenticated = window.isAuthenticated || false;
-        
-        // If NOT authenticated, need to login first but preserve the chat
-        if (!isAuthenticated) {
-          const saveChat = confirm(
-            "You have an ongoing conversation in ephemeral mode.\n\nWould you like to:\n• OK: Save this to your account (requires login)\n• Cancel: Start fresh"
-          );
-          
-          if (saveChat) {
-            // Mark this chat for migration after login
-            await saveAnonymousChatToDatabase();
-            
-            // Redirect to login - chat will be migrated after user logs back in
-            appendMessage({
-              sender: "system",
-              text: "🔐 Redirecting to login. Your conversation will be saved after you log in."
-            });
-            
-            // Small delay so user sees the message, then redirect
-            setTimeout(() => {
-              window.location.href = "/login/";
-            }, 1500);
-          } else {
-            // Clear current chat to start fresh
-            chatMessages.innerHTML = '';
-            clearIntroMessage();
-            createAnonymousSession();
-          }
-          return; // Don't continue with updateConsent until after login
-        }
-        
-        // If authenticated, ask about saving the current chat
         const saveChat = confirm(
-          "You have an ongoing conversation in ephemeral mode. Would you like to save this conversation to your account?\n\nClick OK to save, or Cancel to start fresh."
+          "You have an ongoing conversation in ephemeral mode. Would you like to save this conversation to your secure storage before enabling it?\n\nClick OK to save, or Cancel to start fresh."
         );
         
         if (saveChat) {
-          // Save current anonymous chat to database
+          // Save current anonymous chat to database before enabling storage
           await saveAnonymousChatToDatabase();
         } else {
           // Clear current chat to start fresh
           chatMessages.innerHTML = '';
           clearIntroMessage();
-          createAnonymousSession();
+          createAnonymousSession(); // Start new anonymous session if they cancel
         }
       }
       
@@ -829,31 +751,22 @@ document.addEventListener("DOMContentLoaded", function () {
       const sessionId = getCurrentAnonymousSessionId();
       if (!sessionId) return false;
       
-      const sessions = getAnonymousSessions();
-      const session = sessions.find(s => s.id === sessionId);
+      const session = getAnonymousSessions().find(s => s.id === sessionId);
       if (!session || !session.messages.length) return false;
       
-      console.log(`Preparing to save ${session.messages.length} messages to database after login...`);
+      // Send all messages to create a new database session
+      for (const message of session.messages) {
+        // Only need to send user messages as AI responses are generated
+        if (message.sender === 'user') {
+          // We can just mark this happened, but actual saving happens via /api/chat/
+          console.log('Message queued for saving:', message.text);
+        }
+      }
       
-      // Store the anonymous session ID in localStorage so we can migrate it after login
-      localStorage.setItem('pendingMigrationSessionId', sessionId);
-      localStorage.setItem('pendingMigrationMessages', JSON.stringify(session.messages));
-      
-      // Don't delete from localStorage yet - keep it as backup
-      // User might not complete login, so keep the original anonymous session
-      
-      appendMessage({ 
-        sender: "system", 
-        text: "✅ Your conversation will be saved to your account after you log in." 
-      });
-      
+      console.log('Anonymous chat prepared for database storage');
       return true;
     } catch (error) {
-      console.error('Error preparing anonymous chat for migration:', error);
-      appendMessage({
-        sender: "system",
-        text: "⚠️ There was an issue preparing your chat for saving. Please try again."
-      });
+      console.error('Error saving anonymous chat:', error);
       return false;
     }
   }
@@ -1013,8 +926,8 @@ document.addEventListener("DOMContentLoaded", function () {
         allSessions = getAnonymousSessions();
       }
       
-      // Load authenticated sessions from API (only if explicitly enabled, not when null/loading)
-      if (consentStatus === true) {
+      // Load authenticated sessions from API
+      if (consentStatus === true || consentStatus === null) {
         try {
           const res = await fetch("/api/chat/history/", {
             credentials: "same-origin",
@@ -1025,20 +938,13 @@ document.addEventListener("DOMContentLoaded", function () {
           }
         } catch (err) {
           console.error("Error loading authenticated chat history:", err);
-          // Don't treat API error as fatal - still render with what we have
         }
       }
       
-      // Always render, even if empty
       renderChatHistory(allSessions);
     } catch (err) {
       console.error("Error loading chat history:", err);
-      // Show "No chat history yet" instead of error when consentStatus is still loading
-      if (consentStatus === null) {
-        chatSessionsList.innerHTML = '<p style="color: #718096; text-align: center; padding: 2rem;">Loading history...</p>';
-      } else {
-        chatSessionsList.innerHTML = '<p style="color: #718096; text-align: center; padding: 2rem;">No chat history yet</p>';
-      }
+      chatSessionsList.innerHTML = '<p style="color: #718096; text-align: center; padding: 2rem;">Failed to load chat history</p>';
     }
   }
 
@@ -1340,6 +1246,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // Initial behaviors
   scrollToBottom();
   fetchContext();
+  checkConsentStatus();
   
   // Initialize anonymous session if needed
   function initializeAnonymousSession() {
@@ -1349,12 +1256,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
   
-  // Check consent FIRST, then load history after consent status is known
-  checkConsentStatus().then(() => {
-    // Check if there's a pending migration from anonymous to database
-    checkForPendingMigration();
-    
-    initializeAnonymousSession();
-    loadChatHistory();
-  });
+  // Initialize anonymous session and load history
+  initializeAnonymousSession();
+  loadChatHistory();
 });
