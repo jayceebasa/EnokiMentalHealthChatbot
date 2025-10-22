@@ -2,38 +2,38 @@
 let consentStatus = null;
 let selectedConsent = null;
 
-// Anonymous mode localStorage keys
+// Anonymous mode sessionStorage keys (cleared when browser closes)
 const ANONYMOUS_SESSIONS_KEY = 'anonymousChatSessions';
 const ANONYMOUS_CURRENT_SESSION_KEY = 'anonymousCurrentSessionId';
 
-// Get anonymous chat sessions from localStorage
+// Get anonymous chat sessions from sessionStorage (cleared on browser close)
 function getAnonymousSessions() {
   try {
-    const stored = localStorage.getItem(ANONYMOUS_SESSIONS_KEY);
+    const stored = sessionStorage.getItem(ANONYMOUS_SESSIONS_KEY);
     return stored ? JSON.parse(stored) : [];
   } catch (e) {
-    console.error('Error reading anonymous sessions from localStorage:', e);
+    console.error('Error reading anonymous sessions from sessionStorage:', e);
     return [];
   }
 }
 
-// Save anonymous chat sessions to localStorage
+// Save anonymous chat sessions to sessionStorage (cleared on browser close)
 function saveAnonymousSessions(sessions) {
   try {
-    localStorage.setItem(ANONYMOUS_SESSIONS_KEY, JSON.stringify(sessions));
+    sessionStorage.setItem(ANONYMOUS_SESSIONS_KEY, JSON.stringify(sessions));
   } catch (e) {
-    console.error('Error saving anonymous sessions to localStorage:', e);
+    console.error('Error saving anonymous sessions to sessionStorage:', e);
   }
 }
 
 // Get current anonymous session ID
 function getCurrentAnonymousSessionId() {
-  return localStorage.getItem(ANONYMOUS_CURRENT_SESSION_KEY);
+  return sessionStorage.getItem(ANONYMOUS_CURRENT_SESSION_KEY);
 }
 
 // Set current anonymous session ID
 function setCurrentAnonymousSessionId(sessionId) {
-  localStorage.setItem(ANONYMOUS_CURRENT_SESSION_KEY, sessionId);
+  sessionStorage.setItem(ANONYMOUS_CURRENT_SESSION_KEY, sessionId);
 }
 
 // Create a new anonymous session
@@ -96,7 +96,7 @@ function deleteAnonymousSession(sessionId) {
   saveAnonymousSessions(filtered);
   
   if (getCurrentAnonymousSessionId() === sessionId) {
-    localStorage.removeItem(ANONYMOUS_CURRENT_SESSION_KEY);
+    sessionStorage.removeItem(ANONYMOUS_CURRENT_SESSION_KEY);
   }
 }
 
@@ -923,9 +923,9 @@ document.addEventListener("DOMContentLoaded", function () {
       
       console.log("Loading chat history with consentStatus:", consentStatus);
       
-      // Load anonymous sessions from localStorage ONLY if in anonymous mode
+      // Load anonymous sessions from sessionStorage ONLY if in anonymous mode
       if (consentStatus === false) {
-        console.log("Loading anonymous sessions from localStorage");
+        console.log("Loading anonymous sessions from sessionStorage");
         allSessions = getAnonymousSessions();
       } else if (consentStatus === true || consentStatus === null) {
         // For authenticated users or when consent status is unknown, load from API only
@@ -1094,7 +1094,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     try {
-      // If anonymous session (starts with 'anon_'), delete from localStorage
+      // If anonymous session (starts with 'anon_'), delete from sessionStorage
       if (sessionId && sessionId.startsWith('anon_')) {
         deleteAnonymousSession(sessionId);
         
@@ -1146,7 +1146,7 @@ document.addEventListener("DOMContentLoaded", function () {
       // Show loading indicator
       chatMessages.innerHTML = '<div style="text-align: center; padding: 2rem; color: #718096;">Loading chat...</div>';
 
-      // If anonymous session (starts with 'anon_'), load from localStorage
+      // If anonymous session (starts with 'anon_'), load from sessionStorage
       if (sessionId && sessionId.startsWith('anon_')) {
         setCurrentAnonymousSessionId(sessionId);
         const messages = loadAnonymousSessionMessages(sessionId);
