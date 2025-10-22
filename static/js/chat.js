@@ -1363,10 +1363,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
         // For anonymous sessions, compute message_count and preview from messages array
         if (sessionIdStr && sessionIdStr.startsWith("anon_")) {
-          processed.message_count = session.messages ? session.messages.length : 0;
-          if (session.messages && session.messages.length > 0) {
-            const lastMessage = session.messages[session.messages.length - 1];
-            processed.preview = lastMessage.text.substring(0, 80) + (lastMessage.text.length > 80 ? "..." : "");
+          const messageCount = session.messages ? session.messages.length : 0;
+          processed.message_count = messageCount;
+          
+          if (messageCount > 0) {
+            // Find the first user message for the preview
+            const firstUserMessage = session.messages.find((m) => m.sender === "user");
+            if (firstUserMessage) {
+              processed.preview = firstUserMessage.text.substring(0, 80) + (firstUserMessage.text.length > 80 ? "..." : "");
+              processed.title = firstUserMessage.text.substring(0, 50) + (firstUserMessage.text.length > 50 ? "..." : "");
+            } else {
+              processed.preview = "No user messages yet";
+            }
           } else {
             processed.preview = "No messages yet";
           }

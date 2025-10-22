@@ -605,6 +605,11 @@ def api_new_chat(request):
                 del request.session['temp_chat_history']
                 audit_logger.info("Anonymous chat history cleared for new chat")
             
+            # Also clear the current session ID to prevent using old session's summary/memory
+            if 'current_chat_session_id' in request.session:
+                del request.session['current_chat_session_id']
+                audit_logger.info("Current session ID cleared for new anonymous chat")
+            
             return JsonResponse({
                 'session_id': None,
                 'message': 'New anonymous chat started - previous conversation cleared',
