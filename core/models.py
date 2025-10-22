@@ -21,6 +21,7 @@ class ChatSession(models.Model):
 	class Meta:
 		indexes = [
 			models.Index(fields=["anon_id"]),
+			models.Index(fields=["user", "-updated_at"]),
 			models.Index(fields=["created_at"]),
 		]
 
@@ -68,6 +69,8 @@ class Message(models.Model):
 	class Meta:
 		ordering = ["created_at"]
 		indexes = [
+			models.Index(fields=["session_id", "created_at"]),
+			models.Index(fields=["session_id", "sender"]),
 			models.Index(fields=["created_at"]),
 			models.Index(fields=["sender"]),
 		]

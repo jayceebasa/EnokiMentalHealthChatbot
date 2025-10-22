@@ -10,6 +10,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from django.core.cache import cache
+from django.db.models import Prefetch
 from .gemini_client import generate_reply, update_summary, update_memory
 from .models import ChatSession, Message, UserPreference
 from django.db import transaction
@@ -216,9 +217,17 @@ def api_chat(request):
 
             audit_logger.info(
                 f"Message stored: user_id={getattr(request.user, 'id', None)}, session_id={session.id}, action=create_bot_message")
+            
+            # Invalidate chat sessions cache after saving messages
+            if request.user.is_authenticated:
+                cache.delete(f"chat_sessions_{request.user.id}")
+            else:
+                anon_id = _get_or_create_anon_id(request)
+                cache.delete(f"chat_sessions_anon_{anon_id}")
 
             # Update summary every 3 user messages (approx)
-            user_msg_count = session.messages.filter(sender="user").count()
+            # Use count in memory instead of database query for efficiency
+            user_msg_count = len([m for m in session.messages.all() if m.sender == "user"])
             # Update summary more frequently early on (first 6 user msgs), then every 3
             if user_msg_count <= 6 or user_msg_count % 3 == 0:
                 session.summary = update_summary(
@@ -375,7 +384,13 @@ def _validate_session_ownership(session, request):
 
 
 def _get_or_create_preferences(request):
+    # Try cache first
     if request.user.is_authenticated:
+        cache_key = f"user_prefs_{request.user.id}"
+        prefs = cache.get(cache_key)
+        if prefs:
+            return prefs
+        
         prefs, created = UserPreference.objects.get_or_create(user=request.user)
         # Automatically enable storage consent for authenticated users if not already set
         if created and not prefs.data_consent:
@@ -383,9 +398,22 @@ def _get_or_create_preferences(request):
             prefs.consent_timestamp = timezone.now()
             prefs.save()
             audit_logger.info(f"Auto-enabled data storage for authenticated user: {request.user.id}")
+        
+        # Cache for 1 hour
+        cache.set(cache_key, prefs, timeout=3600)
         return prefs
-    anon_id = _get_or_create_anon_id(request)
+    
+    # For anonymous users, use session-based caching
+    anon_id = _get_or_create_anon_id(request)  # Get once, use twice
+    cache_key = f"anon_prefs_{anon_id}"
+    prefs = cache.get(cache_key)
+    if prefs:
+        return prefs
+    
     prefs, _ = UserPreference.objects.get_or_create(anon_id=anon_id, user=None)
+    
+    # Cache for 1 hour
+    cache.set(cache_key, prefs, timeout=3600)
     return prefs
 
 
@@ -499,7 +527,8 @@ def chat(request):
                             text=reply, emotions=None)
             m_bot.set_plaintext(reply)
             m_bot.save()
-            user_msg_count = session.messages.filter(sender="user").count()
+            # Use count in memory instead of database query for efficiency
+            user_msg_count = len([m for m in session.messages.all() if m.sender == "user"])
             if user_msg_count <= 6 or user_msg_count % 3 == 0:
                 session.summary = update_summary(
                     session.summary,
@@ -558,9 +587,13 @@ def api_new_chat(request):
         # CONSENT GIVEN: Create new database session
         if request.user.is_authenticated:
             new_session = ChatSession.objects.create(user=request.user)
+            # Invalidate chat sessions cache
+            cache.delete(f"chat_sessions_{request.user.id}")
         else:
             anon_id = _get_or_create_anon_id(request)
             new_session = ChatSession.objects.create(anon_id=anon_id)
+            # Invalidate chat sessions cache
+            cache.delete(f"chat_sessions_anon_{anon_id}")
 
         # Set this new session as the current active session
         request.session['current_chat_session_id'] = new_session.id
@@ -577,15 +610,30 @@ def api_new_chat(request):
 @csrf_exempt
 @require_http_methods(["GET"])
 def api_chat_sessions(request):
-    """Get all chat sessions for the current user/anonymous user."""
+    """Get all chat sessions for the current user/anonymous user - with caching"""
     try:
+        # Try cache first for performance
+        if request.user.is_authenticated:
+            cache_key = f"chat_sessions_{request.user.id}"
+        else:
+            cache_key = f"chat_sessions_anon_{_get_or_create_anon_id(request)}"
+        
+        cached_sessions = cache.get(cache_key)
+        if cached_sessions:
+            return JsonResponse(cached_sessions)
+        
+        # Use prefetch_related to batch fetch all messages in one query
+        messages_prefetch = Prefetch('messages')
+        
         if request.user.is_authenticated:
             sessions = ChatSession.objects.filter(
-                user=request.user).order_by('-updated_at')
+                user=request.user).prefetch_related(
+                messages_prefetch).order_by('-updated_at')
         else:
             anon_id = _get_or_create_anon_id(request)
             sessions = ChatSession.objects.filter(
-                anon_id=anon_id).order_by('-updated_at')
+                anon_id=anon_id).prefetch_related(
+                messages_prefetch).order_by('-updated_at')
 
         try:
             current_session = _get_or_create_session(request)
@@ -595,20 +643,30 @@ def api_chat_sessions(request):
             current_session_id = None
 
         session_list = []
-        for session in sessions:
+        for idx, session in enumerate(sessions):
             try:
-                # Get first user message for preview
-                first_message = session.messages.filter(sender='user').first()
+                # Get first user message for preview from prefetched data (no database hit)
+                all_messages = list(session.messages.all())
+                first_user_message = next(
+                    (m for m in all_messages if m.sender == 'user'), None
+                )
                 
-                if first_message:
-                    try:
-                        plaintext = first_message.plaintext
-                    except Exception as e:
-                        plaintext = first_message.text[:100]  # Fallback to encrypted text
-                        audit_logger.warning(f"Error decrypting message {first_message.id}: {e}")
-                    
-                    preview = plaintext[:100]
-                    title = plaintext[:50] + "..." if len(plaintext) > 50 else plaintext
+                # LAZY DECRYPTION: Only decrypt first 10 sessions for performance
+                # Others will be decrypted on-demand when user clicks them
+                if first_user_message:
+                    if idx < 10:  # Decrypt first 10 immediately
+                        try:
+                            plaintext = first_user_message.plaintext
+                        except Exception as e:
+                            plaintext = first_user_message.text[:100]  # Fallback to encrypted text
+                            audit_logger.warning(f"Error decrypting message {first_user_message.id}: {e}")
+                        
+                        preview = plaintext[:100]
+                        title = plaintext[:50] + "..." if len(plaintext) > 50 else plaintext
+                    else:
+                        # For sessions beyond 10, use encrypted text for now, decrypt on-demand
+                        preview = first_user_message.text[:100] if first_user_message.text else "[Encrypted Message]"
+                        title = "[Click to load preview]"
                 else:
                     preview = "No messages yet"
                     title = "New Chat"
@@ -617,19 +675,25 @@ def api_chat_sessions(request):
                     'id': session.id,
                     'title': title,
                     'preview': preview,
-                    'message_count': session.messages.count(),
+                    'message_count': len(all_messages),  # Use prefetched data instead of count()
                     'created_at': session.created_at.isoformat(),
                     'updated_at': session.updated_at.isoformat(),
-                    'is_current': session.id == current_session_id if current_session_id else False
+                    'is_current': session.id == current_session_id if current_session_id else False,
+                    'needs_decryption': idx >= 10 and first_user_message is not None  # Flag for frontend
                 })
             except Exception as e:
                 audit_logger.error(f"Error processing session {session.id}: {e}")
                 continue
 
-        return JsonResponse({
+        response_data = {
             'sessions': session_list,
             'current_session_id': current_session_id
-        })
+        }
+        
+        # Cache for 10 seconds to handle rapid page opens but stay fresh for new messages
+        cache.set(cache_key, response_data, timeout=10)
+        
+        return JsonResponse(response_data)
     except Exception as e:
         audit_logger.error(f"Error in api_chat_sessions: {e}", exc_info=True)
         return JsonResponse({'error': str(e)}, status=500)
@@ -767,6 +831,15 @@ def api_consent(request):
             prefs.consent_timestamp = timezone.now()
         prefs.save()
 
+        # Invalidate caches when consent changes
+        if request.user.is_authenticated:
+            cache.delete(f"user_prefs_{request.user.id}")
+            cache.delete(f"consent_status_{request.user.id}")
+        else:
+            anon_id = _get_or_create_anon_id(request)
+            cache.delete(f"anon_prefs_{anon_id}")
+            cache.delete(f"consent_status_anon_{anon_id}")
+
         audit_logger.info(
             f"Consent managed: user_id={getattr(request.user, 'id', 'anon')}, old_consent={old_consent}, new_consent={consent_given}")
 
@@ -792,17 +865,32 @@ def api_consent(request):
 @csrf_exempt
 @require_http_methods(["GET"])
 def api_consent_status(request):
-    """Get current consent status"""
+    """Get current consent status - cached for 30 minutes"""
     try:
+        # Try cache first for performance
+        if request.user.is_authenticated:
+            cache_key = f"consent_status_{request.user.id}"
+        else:
+            cache_key = f"consent_status_anon_{_get_or_create_anon_id(request)}"
+        
+        cached_response = cache.get(cache_key)
+        if cached_response:
+            return JsonResponse(cached_response)
+        
         prefs = _get_or_create_preferences(request)
 
-        return JsonResponse({
+        response_data = {
             'consent_status': getattr(prefs, 'data_consent', False),
             'consent_timestamp': prefs.consent_timestamp.isoformat() if getattr(prefs, 'consent_timestamp', None) else None,
             'consent_version': getattr(prefs, 'consent_version', '1.0'),
             'has_anonymous_data': 'temp_chat_history' in request.session,
             'anonymous_message_count': len(request.session.get('temp_chat_history', []))
-        })
+        }
+        
+        # Cache for 30 minutes
+        cache.set(cache_key, response_data, timeout=1800)
+        
+        return JsonResponse(response_data)
 
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
