@@ -686,6 +686,78 @@ def api_new_chat(request):
 
 
 @csrf_exempt
+@require_http_methods(["POST"])
+def api_save_messages(request):
+    """Save multiple messages to an existing chat session (used for migration from anonymous mode)."""
+    try:
+        data = json.loads(request.body)
+        session_id = data.get('session_id')
+        messages = data.get('messages', [])
+        
+        if not session_id or not messages:
+            return JsonResponse({'error': 'session_id and messages are required'}, status=400)
+        
+        # Verify the session exists and belongs to the user
+        try:
+            session = ChatSession.objects.get(id=session_id)
+            
+            # Check authorization
+            if request.user.is_authenticated:
+                if session.user != request.user:
+                    return JsonResponse({'error': 'Unauthorized'}, status=403)
+            else:
+                anon_id = _get_or_create_anon_id(request)
+                if session.anon_id != anon_id:
+                    return JsonResponse({'error': 'Unauthorized'}, status=403)
+        except ChatSession.DoesNotExist:
+            return JsonResponse({'error': 'Session not found'}, status=404)
+        
+        # Save each message to the session
+        saved_count = 0
+        for msg_data in messages:
+            try:
+                message_text = msg_data.get('text', '').strip()
+                sender = msg_data.get('sender', 'user')
+                created_at = msg_data.get('created_at')
+                
+                if not message_text:
+                    continue
+                
+                msg = Message(
+                    session=session,
+                    text=message_text,
+                    sender=sender
+                )
+                
+                if created_at:
+                    msg.created_at = created_at
+                
+                msg.save()
+                saved_count += 1
+            except Exception as msg_err:
+                logging.error(f"Error saving individual message: {msg_err}")
+                continue
+        
+        # Invalidate cache
+        if request.user.is_authenticated:
+            cache.delete(f"chat_sessions_{request.user.id}")
+        else:
+            anon_id = _get_or_create_anon_id(request)
+            cache.delete(f"chat_sessions_anon_{anon_id}")
+        
+        return JsonResponse({
+            'success': True,
+            'messages_saved': saved_count,
+            'message': f'Successfully saved {saved_count} messages'
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logging.error(f"Error saving messages: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
 @require_http_methods(["GET"])
 def api_chat_sessions(request):
     """Get all chat sessions for the current user/anonymous user - with caching"""

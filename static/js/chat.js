@@ -1218,26 +1218,33 @@ document.addEventListener("DOMContentLoaded", function () {
           console.log(`Created new chat session for anonymous chat ${session.id}:`, newChatId);
 
           // Save all messages from this session to the database
-          for (const message of session.messages) {
-            const saveMessageRes = await fetch("/api/chat/message/", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-CSRFToken": getCSRFToken(),
-              },
-              credentials: "same-origin",
-              body: JSON.stringify({
-                text: message.text,
-                sender: message.sender,
-                chat_session: newChatId,
-              }),
-            });
+          // Use a payload structure that will save messages properly
+          const messagePayload = {
+            session_id: newChatId,
+            messages: session.messages.map(msg => ({
+              text: msg.text,
+              sender: msg.sender,
+              created_at: msg.created_at
+            }))
+          };
 
-            if (!saveMessageRes.ok) {
-              console.error("Failed to save message:", message.text);
-            } else {
-              console.log("Saved message:", message.text.substring(0, 50));
-            }
+          // Try to save all messages via POST to the backend
+          const saveRes = await fetch("/api/chat/save-messages/", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": getCSRFToken(),
+            },
+            credentials: "same-origin",
+            body: JSON.stringify(messagePayload),
+          });
+
+          if (saveRes.ok) {
+            const saveData = await saveRes.json();
+            console.log(`Successfully saved ${saveData.messages_saved} messages to chat: ${newChatId}`);
+          } else {
+            const errorData = await saveRes.json();
+            console.error(`Failed to save messages: ${errorData.error}`);
           }
 
           console.log(`Completed saving session: ${session.id} to chat: ${newChatId}`);
