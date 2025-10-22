@@ -250,8 +250,10 @@ SOCIAL_AUTH_PIPELINE = (
     'social_core.pipeline.social_auth.social_user',
     'social_core.pipeline.user.get_username',
     'social_core.pipeline.user.create_user',
-    # SECURITY: Custom wrapper replaces 'associate_user' with validation
+    # SECURITY: Validate before associating
     'core.oauth_pipeline.prevent_account_linking',
+    # STANDARD: This creates the social auth link (after our validation)
+    'social_core.pipeline.social_auth.associate_user',
     'social_core.pipeline.social_auth.load_extra_data',
     'social_core.pipeline.user.user_details',
 )
