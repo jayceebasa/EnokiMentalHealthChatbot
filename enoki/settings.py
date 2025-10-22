@@ -247,10 +247,10 @@ SOCIAL_AUTH_PIPELINE = (
     'social_core.pipeline.social_auth.social_details',
     'social_core.pipeline.social_auth.social_uid',
     'social_core.pipeline.social_auth.auth_allowed',
-    # SECURITY: Check if email belongs to password account before linking
-    'core.oauth_pipeline.prevent_account_linking',
     'social_core.pipeline.social_auth.social_user',
     'social_core.pipeline.user.get_username',
+    # SECURITY: Check if email belongs to password account BEFORE creating user
+    'core.oauth_pipeline.prevent_account_linking',
     'social_core.pipeline.user.create_user',
     # REMOVED: 'social_core.pipeline.social_auth.associate_user' - This was allowing linking
     'social_core.pipeline.social_auth.load_extra_data',
