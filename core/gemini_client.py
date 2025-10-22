@@ -272,13 +272,17 @@ Current message: "{user_text}"
 
 Emotional indicators (RoBERTa): {emotion_context}
 
+**CRITICAL INSTRUCTIONS - HOTLINE HANDLING**:
+- WHENEVER you give hotlines/resources, ONLY use the ones PROVIDED BELOW
+- DO NOT suggest any other hotlines from your training knowledge
+- DO NOT add, mention, or recommend any hotlines that are not explicitly listed below
+- Repeat back EXACTLY the hotlines I gave you - no alternatives
+- If user asks for hotlines, give ONLY these specific numbers
+
 **CRITICAL INSTRUCTIONS**:
 - DO NOT repeat or echo back what they said
 - DO NOT start with casual interjections like "Hey!" or "Oh!"
 - DO take this seriously and respond with genuine concern
-- ONLY use the crisis resources PROVIDED BELOW - do NOT add, suggest, or mention any other hotlines or resources
-- ONLY mention resources that are explicitly listed below
-- DO NOT use resources from your training data
 - Style: {tone_config['style']}
 - Approach: {tone_config['approach']}
 
@@ -432,6 +436,13 @@ Current message: "{user_text}"
 
 Emotional indicators (RoBERTa): {emotion_context}
 Their situation: {main_focus}
+
+**CRITICAL INSTRUCTIONS - HOTLINE HANDLING**:
+- WHENEVER you give hotlines/resources, ONLY use the ones PROVIDED BELOW
+- DO NOT suggest any other hotlines from your training knowledge
+- DO NOT add, mention, or recommend any hotlines that are not explicitly listed below
+- Repeat back EXACTLY the hotlines I gave you - no alternatives
+- If user asks for hotlines, give ONLY these specific numbers
 
 **CRITICAL INSTRUCTIONS**:
 - DO NOT repeat or echo back what they said
