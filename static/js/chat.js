@@ -684,7 +684,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // Append a message to the chat display
-  function appendMessage({ sender, text, timeStr = null }) {
+  function appendMessage({ sender, text, timeStr = null, isExisting = false }) {
     // Clear intro when user sends first message
     if (sender === "user") {
       clearIntroMessage();
@@ -707,8 +707,10 @@ document.addEventListener("DOMContentLoaded", function () {
     wrapper.appendChild(content);
     chatMessages.appendChild(wrapper);
 
-    // Persist message to anonymous session if applicable
-    addMessageToAnonymousSession(sender, text);
+    // Persist message to anonymous session if applicable (but only for new messages, not existing ones)
+    if (!isExisting) {
+      addMessageToAnonymousSession(sender, text);
+    }
 
     scrollToBottom();
   }
@@ -1058,9 +1060,15 @@ document.addEventListener("DOMContentLoaded", function () {
         updateConsentUI();
         hideConsentModal();
 
-        // Show feedback message
-        const feedback = consent ? "Privacy setting updated: Secure storage enabled" : "Privacy setting updated: Anonymous mode enabled";
-        appendMessage({ sender: "system", text: feedback });
+        // Show feedback as toast notification only (not in chat)
+        const feedbackTitle = consent ? "Secure Storage Enabled" : "Anonymous Mode Enabled";
+        const feedbackMessage = consent ? "Your conversations will be saved securely." : "Your conversations will not be saved.";
+        showNotification(feedbackTitle, feedbackMessage, "success", 4000);
+
+        // Reload page to refresh chat history after consent change
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
 
         return true;
       } else {
@@ -1068,7 +1076,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     } catch (error) {
       console.error("Error updating consent:", error);
-      appendMessage({ sender: "system", text: "Error updating privacy setting. Please try again." });
+      showNotification("Error", "Failed to update privacy setting. Please try again.", "error");
       return false;
     }
   }
@@ -1543,6 +1551,7 @@ document.addEventListener("DOMContentLoaded", function () {
               sender: message.sender,
               text: message.text,
               timeStr: message.created_at ? formatTime(message.created_at) : undefined,
+              isExisting: true,  // Flag to indicate these are existing messages, not new ones
             });
           });
         }
@@ -1638,6 +1647,7 @@ document.addEventListener("DOMContentLoaded", function () {
             text: message.text,
             emotions: message.emotions,
             timeStr: formatTime(message.created_at),
+            isExisting: true,  // These are existing messages from the database
           });
         });
       }
