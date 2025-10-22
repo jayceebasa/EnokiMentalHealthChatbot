@@ -1011,6 +1011,14 @@ document.addEventListener("DOMContentLoaded", function () {
           createAnonymousSession();
         }
       }
+      
+      // If entering anonymous mode (consent = false), always create a fresh session
+      if (consent === false) {
+        // Clear the chat and create a new anonymous session
+        chatMessages.innerHTML = "";
+        clearIntroMessage();
+        createAnonymousSession();
+      }
 
       const response = await fetch("/api/consent/", {
         method: "POST",
