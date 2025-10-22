@@ -439,6 +439,25 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!sessionId || sessionId.startsWith("anon_")) {
         // Anonymous session
         deleteAnonymousSession(sessionId);
+        
+        // If this was the last anonymous session, also clear the backend
+        const remainingSessions = getAnonymousSessions();
+        if (remainingSessions.length === 0) {
+          try {
+            await fetch("/api/clear/anonymous/", {
+              method: "POST",
+              headers: {
+                "X-CSRFToken": getCSRFToken(),
+                "Content-Type": "application/json",
+              },
+              credentials: "same-origin",
+            });
+            console.log("Cleared backend anonymous chat history after deleting last session");
+          } catch (e) {
+            console.error("Error clearing backend chat history:", e);
+          }
+        }
+        
         showNotification("Chat Deleted", "This conversation has been removed.", "success");
         loadChatHistory();
         return;
@@ -1707,7 +1726,30 @@ document.addEventListener("DOMContentLoaded", function () {
   fetchContext();
 
   // Load consent status then chat history
-  checkConsentStatus().then(() => {
+  checkConsentStatus().then(async () => {
+    // If in anonymous mode, ensure sessionStorage and server are in sync
+    if (consentStatus === false) {
+      const currentSessionId = getCurrentAnonymousSessionId();
+      const sessions = getAnonymousSessions();
+      
+      // If no sessions in sessionStorage, clear backend temp_chat_history too
+      if (!currentSessionId || sessions.length === 0) {
+        try {
+          await fetch("/api/clear/anonymous/", {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": getCSRFToken(),
+              "Content-Type": "application/json",
+            },
+            credentials: "same-origin",
+          });
+          console.log("Cleared backend anonymous chat history on page load");
+        } catch (e) {
+          console.error("Error clearing backend chat history:", e);
+        }
+      }
+    }
+    
     loadChatHistory();
   });
 

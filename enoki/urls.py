@@ -43,4 +43,5 @@ urlpatterns = [
     path('api/consent/', api_consent, name='api_consent'),
     path('api/consent/status/', api_consent_status, name='api_consent_status'),
     path('api/chat/clear-anonymous/', api_clear_anonymous_chat, name='api_clear_anonymous_chat'),
+    path('api/clear/anonymous/', api_clear_anonymous_chat, name='api_clear_anonymous_chat_alt'),  # Alternative path for frontend compatibility
 ]
