@@ -1151,6 +1151,22 @@ document.addEventListener("DOMContentLoaded", function () {
     try {
       // If in anonymous/anonymous mode, create local session
       if (consentStatus === false) {
+        // ALWAYS clear backend temp_chat_history when starting new anonymous chat
+        try {
+          await fetch("/api/clear/anonymous/", {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": getCSRFToken(),
+              "Content-Type": "application/json",
+            },
+            credentials: "same-origin",
+          });
+          console.log("Cleared backend anonymous chat history when starting new chat");
+        } catch (e) {
+          console.error("Error clearing backend chat history on new chat:", e);
+        }
+        
+        // Create a new anonymous session
         createAnonymousSession();
 
         // Clear current chat and show intro
@@ -1727,26 +1743,21 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Load consent status then chat history
   checkConsentStatus().then(async () => {
-    // If in anonymous mode, ensure sessionStorage and server are in sync
+    // If in anonymous mode, ALWAYS clear backend temp_chat_history on page load
+    // This ensures a fresh start every time the user loads/reloads the page
     if (consentStatus === false) {
-      const currentSessionId = getCurrentAnonymousSessionId();
-      const sessions = getAnonymousSessions();
-      
-      // If no sessions in sessionStorage, clear backend temp_chat_history too
-      if (!currentSessionId || sessions.length === 0) {
-        try {
-          await fetch("/api/clear/anonymous/", {
-            method: "POST",
-            headers: {
-              "X-CSRFToken": getCSRFToken(),
-              "Content-Type": "application/json",
-            },
-            credentials: "same-origin",
-          });
-          console.log("Cleared backend anonymous chat history on page load");
-        } catch (e) {
-          console.error("Error clearing backend chat history:", e);
-        }
+      try {
+        await fetch("/api/clear/anonymous/", {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": getCSRFToken(),
+            "Content-Type": "application/json",
+          },
+          credentials: "same-origin",
+        });
+        console.log("Cleared backend anonymous chat history on page load for fresh start");
+      } catch (e) {
+        console.error("Error clearing backend chat history:", e);
       }
     }
     
