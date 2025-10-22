@@ -1153,13 +1153,43 @@ document.addEventListener("DOMContentLoaded", function () {
         
         // Clear current chat and load session messages
         chatMessages.innerHTML = "";
-        messages.forEach((message) => {
-          appendMessage({
-            sender: message.sender,
-            text: message.text,
-            timeStr: message.created_at ? formatTime(message.created_at) : undefined,
+        
+        if (messages.length === 0) {
+          // Show intro message if no messages
+          chatMessages.innerHTML = `
+                <div class="intro-message">
+                    <div class="intro-content">
+                        <div class="intro-header">
+                            <span class="intro-avatar">🍄</span>
+                            <span class="intro-name">EnokiAI</span>
+                        </div>
+                        <div class="intro-text">
+                            Hello! I'm EnokiAI, your mental health companion. I'm here to listen, support, and help you navigate your thoughts and feelings in a safe, non-judgmental space.
+                        </div>
+                        <div class="intro-features">
+                            <h4>What I can help with:</h4>
+                            <ul>
+                                <li>Active listening and emotional support</li>
+                                <li>Stress management techniques</li>
+                                <li>Mindfulness and coping strategies</li>
+                                <li>General mental wellness guidance</li>
+                            </ul>
+                        </div>
+                        <div class="intro-text" style="margin-top: 1rem; font-style: italic; font-size: 0.9rem; color: #718096;">
+                            Remember: I'm here to support you, but I'm not a replacement for professional mental health care. If you're experiencing a crisis, please reach out to a mental health professional or crisis helpline.
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+          messages.forEach((message) => {
+            appendMessage({
+              sender: message.sender,
+              text: message.text,
+              timeStr: message.created_at ? formatTime(message.created_at) : undefined,
+            });
           });
-        });
+        }
 
         // Update context
         if (summaryEl) summaryEl.textContent = "";
@@ -1204,14 +1234,44 @@ document.addEventListener("DOMContentLoaded", function () {
 
       // Clear current chat and load session messages
       chatMessages.innerHTML = "";
-      data.messages.forEach((message) => {
-        appendMessage({
-          sender: message.sender,
-          text: message.text,
-          emotions: message.emotions,
-          timeStr: formatTime(message.created_at),
+      
+      if (data.messages.length === 0) {
+        // Show intro message for empty sessions
+        chatMessages.innerHTML = `
+          <div class="intro-message">
+            <div class="intro-content">
+              <div class="intro-header">
+                <span class="intro-avatar">🍄</span>
+                <span class="intro-name">EnokiAI</span>
+              </div>
+              <div class="intro-text">
+                Hello! I'm EnokiAI, your mental health companion. I'm here to listen, support, and help you navigate your thoughts and feelings in a safe, non-judgmental space.
+              </div>
+              <div class="intro-features">
+                <h4>What I can help with:</h4>
+                <ul>
+                  <li>Active listening and emotional support</li>
+                  <li>Stress management techniques</li>
+                  <li>Mindfulness and coping strategies</li>
+                  <li>General mental wellness guidance</li>
+                </ul>
+              </div>
+              <div class="intro-text" style="margin-top: 1rem; font-style: italic; font-size: 0.9rem; color: #718096;">
+                Remember: I'm here to support you, but I'm not a replacement for professional mental health care. If you're experiencing a crisis, please reach out to a mental health professional or crisis helpline.
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        data.messages.forEach((message) => {
+          appendMessage({
+            sender: message.sender,
+            text: message.text,
+            emotions: message.emotions,
+            timeStr: formatTime(message.created_at),
+          });
         });
-      });
+      }
 
       // Update context
       if (summaryEl) summaryEl.textContent = data.summary || "";

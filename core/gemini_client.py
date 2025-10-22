@@ -276,6 +276,9 @@ Emotional indicators (RoBERTa): {emotion_context}
 - DO NOT repeat or echo back what they said
 - DO NOT start with casual interjections like "Hey!" or "Oh!"
 - DO take this seriously and respond with genuine concern
+- ONLY use the crisis resources PROVIDED BELOW - do NOT add, suggest, or mention any other hotlines or resources
+- ONLY mention resources that are explicitly listed below
+- DO NOT use resources from your training data
 - Style: {tone_config['style']}
 - Approach: {tone_config['approach']}
 
@@ -283,12 +286,12 @@ Emotional indicators (RoBERTa): {emotion_context}
 1. Validate their feelings with genuine concern
 2. Emphasize their life has value
 3. Provide support and hope
-4. Include ALL crisis resources below
+4. Include ONLY the crisis resources below - these are the ONLY resources to mention
 5. End with reassurance they're not alone
 
 **Response length**: This is a crisis - respond with appropriate depth and care. Be thorough but not verbose. Use length that matches severity.
 
-Crisis Resources:
+Crisis Resources (ONLY these resources - do not add others):
 {crisis_resources_text}
 
 Keep it warm, caring, and complete - no cut-off sentences. Reference their situation from the conversation.'''
