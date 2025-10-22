@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="{% static 'css/chat.css' %}" />
     <script>
       // Pass Django context to JavaScript
+      window.isAuthenticated = {{ is_authenticated|lower }};
     </script>
   </head>
   <body>
