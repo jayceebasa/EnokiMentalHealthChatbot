@@ -54,3 +54,50 @@ def prevent_account_linking(strategy, backend, details, user=None, *args, **kwar
     
     # Validation passed, continue to next pipeline step (associate_user)
     return None
+
+
+def extract_username_from_email(strategy, backend, details, user=None, *args, **kwargs):
+    """
+    Extract a better username from email if no real name is provided.
+    
+    Priority:
+    1. Use first_name + last_name if both exist
+    2. Use fullname if it exists
+    3. Use the part before @ in email
+    4. Fall back to default behavior (random hash)
+    """
+    
+    email = details.get('email', '')
+    first_name = details.get('first_name', '').strip()
+    last_name = details.get('last_name', '').strip()
+    fullname = details.get('fullname', '').strip()
+    
+    # Check if we have a real name
+    if first_name and last_name:
+        # Combine first and last name
+        username = f"{first_name.lower()}.{last_name.lower()}"
+    elif fullname:
+        # Use fullname, replace spaces with dots
+        username = fullname.lower().replace(' ', '.')
+    elif email:
+        # Extract username from email (part before @)
+        username = email.split('@')[0].lower()
+    else:
+        # No name or email, let default behavior handle it
+        return None
+    
+    # Make sure it's a valid Django username (max 150 chars, alphanumeric + . _ -)
+    # Remove invalid characters
+    import re
+    username = re.sub(r'[^a-z0-9._-]', '', username)
+    # Limit to 150 characters
+    username = username[:150]
+    
+    # If username is empty after cleanup, fall back to default
+    if not username:
+        return None
+    
+    # Update details so Django uses this username
+    details['username'] = username
+    
+    return None
