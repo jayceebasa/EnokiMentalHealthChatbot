@@ -8,49 +8,55 @@ share the same email address.
 
 from django.contrib.auth.models import User
 from social_core.exceptions import AuthFailed
+from social_core.pipeline.social_auth import associate_user as default_associate_user
 
 
 def prevent_account_linking(strategy, backend, details, user=None, *args, **kwargs):
     """
-    Prevent automatic account linking/merging between OAuth and password accounts.
+    Validates before allowing account association.
     
-    This replaces the default 'associate_user' step which would automatically link
-    OAuth and password accounts if they share the same email.
+    Replaces the default 'associate_user' step with security checks.
+    Only allows linking if:
+    1. It's a new OAuth-only user (user is None)
+    2. It's linking to a user that has NO password (pure OAuth user)
     
-    Security checks:
-    1. If 'user' already exists and is being linked, block if it has a password
-    2. If 'user' is None (new OAuth user), check if the email belongs to a password account
+    Blocks:
+    - Creating new OAuth account with email that belongs to password account
+    - Linking OAuth to existing password account
     """
     
     email = details.get('email', '')
     
     if not email:
-        # No email provided, allow to continue
-        return {}
+        # No email, let default behavior handle it
+        return default_associate_user(strategy, backend, details, user, *args, **kwargs)
     
-    # Case 1: User already exists and is being linked
+    # If user already exists and is being linked/associated
     if user:
+        # Check if this is a password account
         if user.has_usable_password():
-            # This user has a password set, don't link OAuth to it
             raise AuthFailed(
                 backend,
                 'This email is already registered with a password. '
                 'Please log in with your email and password instead.'
             )
-    else:
-        # Case 2: New OAuth user being created - check if email belongs to password account
-        try:
-            existing_user = User.objects.get(email=email)
-            if existing_user.has_usable_password():
-                # Email belongs to a password account, block OAuth creation
-                raise AuthFailed(
-                    backend,
-                    'This email is already registered with a password. '
-                    'Please log in with your email and password instead.'
-                )
-        except User.DoesNotExist:
-            # Email is unique, safe to proceed
-            pass
+        # Safe to associate - it's a pure OAuth account
+        return default_associate_user(strategy, backend, details, user, *args, **kwargs)
     
-    # Return empty dict to continue pipeline (mimics associate_user behavior)
-    return {}
+    # User is None - about to create new account
+    # Check if email already belongs to a password account
+    try:
+        existing_user = User.objects.get(email=email)
+        if existing_user.has_usable_password():
+            # Email belongs to password account, block OAuth creation
+            raise AuthFailed(
+                backend,
+                'This email is already registered with a password. '
+                'Please log in with your email and password instead.'
+            )
+    except User.DoesNotExist:
+        # Email is unique, safe to proceed
+        pass
+    
+    # No conflicts, use default associate behavior
+    return default_associate_user(strategy, backend, details, user, *args, **kwargs)
