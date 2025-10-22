@@ -643,10 +643,13 @@ def api_new_chat(request):
     """Create a new chat session, preserving the current one in history."""
     try:
         prefs = _get_or_create_preferences(request)
+        
+        # Check if this is a save migration request (unauthenticated user saving before login)
+        is_save_migration = request.GET.get('save_migration') == 'true'
 
         # Check consent status to handle anonymous vs persistent sessions
-        if not _check_consent(prefs):
-            # NO CONSENT: Clear anonymous history for new chat
+        if not _check_consent(prefs) and not is_save_migration:
+            # NO CONSENT and not a save migration: Clear anonymous history for new chat
             if 'temp_chat_history' in request.session:
                 del request.session['temp_chat_history']
                 audit_logger.info("Anonymous chat history cleared for new chat")
@@ -662,7 +665,7 @@ def api_new_chat(request):
                 'anonymous_mode': True
             })
         
-        # CONSENT GIVEN: Create new database session
+        # CONSENT GIVEN OR SAVE MIGRATION: Create new database session
         if request.user.is_authenticated:
             new_session = ChatSession.objects.create(user=request.user)
             # Invalidate chat sessions cache

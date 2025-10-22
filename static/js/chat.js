@@ -1174,6 +1174,11 @@ document.addEventListener("DOMContentLoaded", function () {
                     console.error("Error marking anonymous session:", e);
                   }
                   
+                  // NOTE: We do NOT update consent status here for unauthenticated users
+                  // Backend prevents unauthenticated users from setting consent=true
+                  // Instead, we just save the messages with anon_id, and on login,
+                  // _transfer_anonymous_consent() will set data_consent=true
+                  
                   const saveResult = await saveAnonymousChatToDatabase();
                   console.log("Anonymous save result:", saveResult);
                   
@@ -1325,8 +1330,9 @@ document.addEventListener("DOMContentLoaded", function () {
       // Save each anonymous session as a separate chat session in the database
       for (const session of sessionsToSave) {
         try {
-          // Create a new chat session on the backend
-          const newChatRes = await fetch("/api/chat/new/", {
+          // Create a new chat session on the backend with save_migration flag
+          // This allows unauthenticated users to create sessions for saving
+          const newChatRes = await fetch("/api/chat/new/?save_migration=true", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
