@@ -8,28 +8,48 @@ from django.contrib.messages import constants as messages_constants
 from .models import UserPreference, ChatSession
 
 
-def _transfer_anonymous_consent(request, user):
-    """Transfer consent from anonymous session to authenticated user"""
+def _transfer_anonymous_consent(request, user, anon_id=None):
+    """Transfer consent from anonymous session to authenticated user
+    
+    Args:
+        request: Django request object (may have session data)
+        user: Authenticated user to transfer data to
+        anon_id: Optional anon_id parameter - if provided, bypass session lookup
+    """
     try:
+        print(f"\n=== Starting _transfer_anonymous_consent for user {user.id} ===")
+        
         # Get or create user preferences FIRST to ensure it exists
         user_prefs, created = UserPreference.objects.get_or_create(user=user)
         
-        # Check for pending anonymous migration first (comes from the save flow)
-        pending_migration = request.session.get('pending_anon_migration')
-        if pending_migration:
-            anon_id = pending_migration.get('anon_id')
-            # Clear the pending migration flag
-            del request.session['pending_anon_migration']
+        # Priority 1: Use provided anon_id parameter (from DB before session loss)
+        if anon_id:
+            print(f"Using provided anon_id parameter: {anon_id}")
         else:
-            # Fall back to regular anon_id from session
-            anon_id = request.session.get('anon_id')
+            # Priority 2: Check for pending anonymous migration in session (for backward compat)
+            pending_migration = request.session.get('pending_anon_migration')
+            print(f"pending_migration from session: {pending_migration}")
+            
+            if pending_migration:
+                anon_id = pending_migration.get('anon_id')
+                print(f"Found pending_anon_migration with anon_id: {anon_id}")
+                # Clear the pending migration flag
+                del request.session['pending_anon_migration']
+            else:
+                # Priority 3: Fall back to regular anon_id from session
+                anon_id = request.session.get('anon_id')
+                print(f"Using regular anon_id from session: {anon_id}")
         
         if not anon_id:
+            print("No anon_id found, returning without transfer")
             return
+        
+        print(f"Looking for anonymous sessions with anon_id: {anon_id}")
         
         # Get anonymous preferences
         anon_prefs = UserPreference.objects.filter(anon_id=anon_id, user=None).first()
         if anon_prefs:
+            print(f"Found anonymous preferences, transferring...")
             # Transfer all preferences from anonymous to authenticated
             # Always transfer tone and language
             user_prefs.tone = anon_prefs.tone
@@ -42,29 +62,46 @@ def _transfer_anonymous_consent(request, user):
                 user_prefs.consent_version = anon_prefs.consent_version
             
             user_prefs.save()
-            
-            # Optionally delete the anonymous preferences
-            # anon_prefs.delete()
+            print(f"User preferences transferred")
+        else:
+            print(f"No anonymous preferences found for anon_id: {anon_id}")
         
         # Transfer anonymous chat sessions to the authenticated user
         _transfer_anonymous_chat_sessions(anon_id, user)
+        print(f"=== Completed _transfer_anonymous_consent ===\n")
     except Exception as e:
         # Log error but don't break the login flow
+        print(f"Error in _transfer_anonymous_consent: {e}")
+        import traceback
+        traceback.print_exc()
         pass
 
 
 def _transfer_anonymous_chat_sessions(anon_id, user):
     """Transfer all anonymous chat sessions to the authenticated user"""
     try:
+        from .models import ChatSession
+        print(f"\n=== Starting _transfer_anonymous_chat_sessions ===")
+        print(f"Looking for sessions with anon_id={anon_id} for user {user.id}")
+        
         # Find all chat sessions with this anon_id
         anonymous_sessions = ChatSession.objects.filter(anon_id=anon_id, user=None)
         
+        print(f"Found {anonymous_sessions.count()} anonymous sessions")
+        
         if anonymous_sessions.exists():
             # Transfer all anonymous sessions to the user
+            count = anonymous_sessions.count()
             anonymous_sessions.update(user=user, anon_id=None)
-            print(f"Transferred {anonymous_sessions.count()} anonymous chat sessions to user {user.id}")
+            print(f"✅ Transferred {count} anonymous chat sessions to user {user.id}")
+        else:
+            print(f"❌ No anonymous sessions found with anon_id={anon_id}")
+        
+        print(f"=== Completed _transfer_anonymous_chat_sessions ===\n")
     except Exception as e:
         print(f"Error transferring chat sessions: {e}")
+        import traceback
+        traceback.print_exc()
         pass
 
 
@@ -115,11 +152,27 @@ def register_view(request):
         if form.is_valid():
             user = form.save()
             
-            # Transfer anonymous consent if it exists
-            _transfer_anonymous_consent(request, user)
+            # CRITICAL: Extract anon_id BEFORE calling login() which creates new session
+            anon_id_to_transfer = None
+            
+            # Check for pending anonymous migration stored in session
+            pending_migration = request.session.get('pending_anon_migration')
+            if pending_migration:
+                anon_id_to_transfer = pending_migration.get('anon_id')
+                print(f"[register_view] Found pending_anon_migration, anon_id to transfer: {anon_id_to_transfer}")
+            
+            # Also check for regular anon_id in session
+            if not anon_id_to_transfer:
+                anon_id_to_transfer = request.session.get('anon_id')
+                if anon_id_to_transfer:
+                    print(f"[register_view] Found regular anon_id in session: {anon_id_to_transfer}")
             
             # Automatically log the user in after registration with explicit backend
             login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+            
+            # NOW transfer anonymous consent with the extracted anon_id
+            _transfer_anonymous_consent(request, user, anon_id=anon_id_to_transfer)
+            
             messages.success(request, f'Welcome, {user.username}! Your account has been created.', extra_tags='success')
             return redirect('chat')
         else:
@@ -141,11 +194,29 @@ def login_view(request):
         user = authenticate(request, username=username, password=password)
         
         if user is not None:
-            # Transfer anonymous consent if it exists
-            _transfer_anonymous_consent(request, user)
+            # CRITICAL: Extract anon_id BEFORE calling login() which creates new session
+            # This is necessary because login() destroys the old session with pending_anon_migration data
+            anon_id_to_transfer = None
             
-            # Log in with explicit backend
+            # Check for pending anonymous migration stored in session
+            pending_migration = request.session.get('pending_anon_migration')
+            if pending_migration:
+                anon_id_to_transfer = pending_migration.get('anon_id')
+                print(f"[login_view] Found pending_anon_migration, anon_id to transfer: {anon_id_to_transfer}")
+            
+            # Also check for regular anon_id in session (for regular anonymous→auth flow)
+            if not anon_id_to_transfer:
+                anon_id_to_transfer = request.session.get('anon_id')
+                if anon_id_to_transfer:
+                    print(f"[login_view] Found regular anon_id in session: {anon_id_to_transfer}")
+            
+            # Log in with explicit backend (this creates a NEW session, destroying old session data)
             login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+            
+            # NOW transfer anonymous consent with the extracted anon_id
+            # Pass anon_id directly to avoid trying to retrieve from (new) session
+            _transfer_anonymous_consent(request, user, anon_id=anon_id_to_transfer)
+            
             messages.success(request, f'Welcome back, {user.username}!', extra_tags='success')
             # Redirect to next page if specified, otherwise to chat
             next_page = request.GET.get('next', 'chat')
