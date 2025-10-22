@@ -1734,15 +1734,16 @@ document.addEventListener("DOMContentLoaded", function () {
   // New chat button
   if (newChatBtn)
     newChatBtn.addEventListener("click", function () {
-      // If no messages in current chat, check if there's an empty chat to redirect to
+      // Always check if there's an empty chat first, regardless of current state
+      const emptySessionId = findEmptyChat();
+      if (emptySessionId) {
+        // Load the empty chat instead of creating a new one
+        loadChatSession(emptySessionId);
+        return;
+      }
+      
+      // If no empty chat exists, proceed with normal new chat logic
       if (!hasMessages()) {
-        const emptySessionId = findEmptyChat();
-        if (emptySessionId) {
-          // Load the empty chat instead of showing notification
-          loadChatSession(emptySessionId);
-          return;
-        }
-        // If no empty chat exists, show the original notification
         showNotification("🍄 Let's Chat First!", "Start a conversation before creating a new chat. Every conversation matters!", "info", 4500);
         return;
       }
@@ -1755,15 +1756,16 @@ document.addEventListener("DOMContentLoaded", function () {
   const newChatBtnHistory = document.getElementById("new-chat-btn-history");
   if (newChatBtnHistory)
     newChatBtnHistory.addEventListener("click", function () {
-      // If no messages in current chat, check if there's an empty chat to redirect to
+      // Always check if there's an empty chat first, regardless of current state
+      const emptySessionId = findEmptyChat();
+      if (emptySessionId) {
+        // Load the empty chat instead of creating a new one
+        loadChatSession(emptySessionId);
+        return;
+      }
+      
+      // If no empty chat exists, proceed with normal new chat logic
       if (!hasMessages()) {
-        const emptySessionId = findEmptyChat();
-        if (emptySessionId) {
-          // Load the empty chat instead of showing notification
-          loadChatSession(emptySessionId);
-          return;
-        }
-        // If no empty chat exists, show the original notification
         showNotification("🍄 Let's Chat First!", "Start a conversation before creating a new chat. Every conversation matters!", "info", 4500);
         return;
       }
