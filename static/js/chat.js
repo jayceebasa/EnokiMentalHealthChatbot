@@ -1,4 +1,7 @@
-// Wire the chat UI to /api/chat/ and /api/chat/context/ so you can test without reloading
+// ============================================
+// GLOBAL VARIABLES & STATE MANAGEMENT
+// ============================================
+
 let consentStatus = null;
 let selectedConsent = null;
 
@@ -6,7 +9,11 @@ let selectedConsent = null;
 const ANONYMOUS_SESSIONS_KEY = "anonymousChatSessions";
 const ANONYMOUS_CURRENT_SESSION_KEY = "anonymousCurrentSessionId";
 
-// Get anonymous chat sessions from sessionStorage (cleared on browser close)
+// ============================================
+// ANONYMOUS SESSION FUNCTIONS
+// ============================================
+
+// Retrieve anonymous chat sessions from sessionStorage
 function getAnonymousSessions() {
   try {
     const stored = sessionStorage.getItem(ANONYMOUS_SESSIONS_KEY);
@@ -17,7 +24,7 @@ function getAnonymousSessions() {
   }
 }
 
-// Save anonymous chat sessions to sessionStorage (cleared on browser close)
+// Save anonymous chat sessions to sessionStorage
 function saveAnonymousSessions(sessions) {
   try {
     sessionStorage.setItem(ANONYMOUS_SESSIONS_KEY, JSON.stringify(sessions));
@@ -26,17 +33,17 @@ function saveAnonymousSessions(sessions) {
   }
 }
 
-// Get current anonymous session ID
+// Retrieve the current anonymous session ID
 function getCurrentAnonymousSessionId() {
   return sessionStorage.getItem(ANONYMOUS_CURRENT_SESSION_KEY);
 }
 
-// Set current anonymous session ID
+// Set the current anonymous session ID
 function setCurrentAnonymousSessionId(sessionId) {
   sessionStorage.setItem(ANONYMOUS_CURRENT_SESSION_KEY, sessionId);
 }
 
-// Create a new anonymous session
+// Create a new anonymous session with initial metadata
 function createAnonymousSession() {
   const sessionId = "anon_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
   const session = {
@@ -55,9 +62,9 @@ function createAnonymousSession() {
   return sessionId;
 }
 
-// Add message to anonymous session
+// Add a message to the current anonymous session
 function addMessageToAnonymousSession(sender, text) {
-  if (consentStatus !== false) return; // Only if in anonymous mode
+  if (consentStatus !== false) return; // Only store if in anonymous mode
 
   const sessionId = getCurrentAnonymousSessionId();
   if (!sessionId) return;
@@ -73,7 +80,7 @@ function addMessageToAnonymousSession(sender, text) {
     });
     session.updated_at = new Date().toISOString();
 
-    // Update title if first user message
+    // Update title based on first user message
     if (sender === "user" && session.messages.filter((m) => m.sender === "user").length === 1) {
       session.title = text.substring(0, 50) + (text.length > 50 ? "..." : "");
     }
@@ -82,14 +89,14 @@ function addMessageToAnonymousSession(sender, text) {
   }
 }
 
-// Load anonymous session messages
+// Load all messages from a specific anonymous session
 function loadAnonymousSessionMessages(sessionId) {
   const sessions = getAnonymousSessions();
   const session = sessions.find((s) => s.id === sessionId);
   return session ? session.messages : [];
 }
 
-// Delete anonymous session
+// Remove an anonymous session and its messages from storage
 function deleteAnonymousSession(sessionId) {
   const sessions = getAnonymousSessions();
   const filtered = sessions.filter((s) => s.id !== sessionId);
@@ -101,12 +108,16 @@ function deleteAnonymousSession(sessionId) {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
+  // ============================================
+  // DOM ELEMENT SELECTORS
+  // ============================================
+
   const messageForm = document.querySelector(".message-form");
   const messageInput = document.querySelector(".message-input");
   const sendBtn = document.querySelector(".send-btn");
   const chatMessages = document.getElementById("chat-messages");
   const toneSelect = document.getElementById("tone");
-  const languageSelect = document.getElementById("language"); // Hidden field for backend compatibility
+  const languageSelect = document.getElementById("language");
 
   // Mobile menu elements
   const hamburgerBtn = document.getElementById("hamburger-btn");
@@ -132,13 +143,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // New chat button
   const newChatBtn = document.getElementById("new-chat-btn");
-  const refreshBtn = document.getElementById("refresh-btn"); // May not exist
+  const refreshBtn = document.getElementById("refresh-btn");
 
-  // Context elements (may not exist if context panel was removed)
+  // Context elements
   const summaryEl = document.getElementById("summary");
   const memoryEl = document.getElementById("memory");
 
-  // Mobile menu toggle
+  // ============================================
+  // MOBILE MENU FUNCTIONALITY
+  // ============================================
+
   function toggleMobileMenu() {
     mobileMenu.classList.toggle("open");
     mobileMenuOverlay.classList.toggle("open");
@@ -188,7 +202,10 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // Consent elements
+  // ============================================
+  // CONSENT MODAL ELEMENTS
+  // ============================================
+
   const consentModal = document.getElementById("consent-modal");
   const consentOverlay = document.getElementById("consent-overlay");
   const consentOptions = document.querySelectorAll(".consent-option");
@@ -198,7 +215,10 @@ document.addEventListener("DOMContentLoaded", function () {
   const anonymousWarning = document.getElementById("anonymous-warning");
   const enableStorageBtn = document.getElementById("enable-storage-btn");
 
-  // Validate required elements
+  // ============================================
+  // ELEMENT VALIDATION
+  // ============================================
+
   if (!messageInput || !sendBtn || !chatMessages) {
     console.error("Required chat elements not found:", {
       messageInput: !!messageInput,
@@ -208,12 +228,15 @@ document.addEventListener("DOMContentLoaded", function () {
     return;
   }
 
-  // Rate limiting variables
+  // ============================================
+  // RATE LIMITING & MESSAGE SENDING
+  // ============================================
+
   let lastMessageTime = 0;
-  const RATE_LIMIT_MS = 5000; // 5 seconds
+  const RATE_LIMIT_MS = 5000;
   let countdownInterval = null;
 
-  // Global function for inline handlers
+  // Global function for inline event handlers
   window.handleSendMessage = function () {
     const message = messageInput.value.trim();
     if (message && !sendBtn.disabled) {
@@ -221,6 +244,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   };
 
+  // Prevent rapid message sending with countdown timer
   function startCooldownTimer() {
     const now = Date.now();
     const timeSinceLastMessage = now - lastMessageTime;
@@ -515,7 +539,11 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // Auto-resize textarea
+  // ============================================
+  // UI EVENT LISTENERS
+  // ============================================
+
+  // Auto-resize textarea based on content
   if (messageInput) {
     messageInput.addEventListener("input", function () {
       this.style.height = "auto";
@@ -523,15 +551,22 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  // ============================================
+  // MESSAGE RENDERING HELPERS
+  // ============================================
+
+  // Format timestamp for display
   function fmtTime(d = new Date()) {
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
+  // Append a message to the chat display
   function appendMessage({ sender, text, timeStr = null }) {
-    // Only clear intro message when user sends their first message
+    // Clear intro when user sends first message
     if (sender === "user") {
       clearIntroMessage();
     }
+
     const isUser = sender === "user";
     const wrapper = document.createElement("div");
     wrapper.className = `chat-message ${isUser ? "user-chat" : "bot-chat"}`;
@@ -542,18 +577,20 @@ document.addEventListener("DOMContentLoaded", function () {
             <div class="message-text"></div>
             <div class="message-time">${timeStr || fmtTime()}</div>
         `;
-    // Convert newlines to <br> tags and set innerHTML with escaped HTML
+
+    // Escape HTML and preserve line breaks
     const escapedText = escapeHtml(text).replace(/\n/g, "<br>");
     content.querySelector(".message-text").innerHTML = escapedText;
     wrapper.appendChild(content);
     chatMessages.appendChild(wrapper);
 
-    // Save to anonymous session if in anonymous mode
+    // Persist message to anonymous session if applicable
     addMessageToAnonymousSession(sender, text);
 
     scrollToBottom();
   }
 
+  // Display animated thinking indicator while bot processes
   function showThinkingIndicator() {
     const wrapper = document.createElement("div");
     wrapper.className = "thinking-indicator";
@@ -573,6 +610,7 @@ document.addEventListener("DOMContentLoaded", function () {
     scrollToBottom();
   }
 
+  // Remove thinking indicator
   function hideThinkingIndicator() {
     const indicator = document.getElementById("thinking-indicator");
     if (indicator) {
@@ -580,6 +618,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  // Format and display user memory context
   function renderMemory(memory) {
     if (!memory || typeof memory !== "object") return "<em>No memory yet.</em>";
     const parts = [];
@@ -644,13 +683,17 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  // ============================================
+  // MESSAGE SENDING & PROCESSING
+  // ============================================
+
   async function sendMessage(text) {
-    // Check if button is already disabled (cooldown active or processing)
+    // Prevent sending if cooldown is active
     if (sendBtn.disabled && sendBtn.textContent.includes("Wait")) {
       return;
     }
 
-    // Check rate limit (only if we have a previous message time)
+    // Enforce rate limiting between messages
     if (lastMessageTime > 0) {
       const now = Date.now();
       const timeSinceLastMessage = now - lastMessageTime;
@@ -666,7 +709,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
 
-    // Check consent status before sending
+    // Prompt user to select consent mode before first message
     if (consentStatus === null) {
       showConsentModal();
       return;
@@ -810,9 +853,14 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  // ============================================
+  // CONSENT MODAL MANAGEMENT
+  // ============================================
+
+  // Display consent modal to user
   function showConsentModal() {
     if (consentModal && consentOverlay) {
-      // Reset selection
+      // Reset selection to current status
       selectedConsent = consentStatus;
       updateConsentSelection();
 
@@ -822,6 +870,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  // Hide consent modal
   function hideConsentModal() {
     if (consentModal && consentOverlay) {
       consentModal.classList.remove("show");
@@ -831,6 +880,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  // Update visual state of consent options
   function updateConsentSelection() {
     consentOptions.forEach((option) => {
       const isSelected = option.dataset.consent === String(selectedConsent);
@@ -838,22 +888,23 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  // Handle consent preference changes
   async function updateConsent(consent) {
     try {
-      // If switching TO secure mode FROM anonymous mode and has messages, ask about saving current chat
+      // Handle migration from anonymous to secure mode
       if (consent === true && consentStatus === false && hasMessages()) {
         const saveChat = confirm(
           "You have an ongoing conversation in anonymous mode. Would you like to save this conversation to your secure storage before enabling it?\n\nClick OK to save, or Cancel to start fresh."
         );
 
         if (saveChat) {
-          // Save current anonymous chat to database before enabling storage
+          // Migrate anonymous chat to secure database storage
           await saveAnonymousChatToDatabase();
         } else {
-          // Clear current chat to start fresh
+          // Clear current chat and start fresh anonymous session
           chatMessages.innerHTML = "";
           clearIntroMessage();
-          createAnonymousSession(); // Start new anonymous session if they cancel
+          createAnonymousSession();
         }
       }
 
@@ -1090,19 +1141,23 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  // Load chat history
+  // ============================================
+  // CHAT HISTORY & SESSION MANAGEMENT
+  // ============================================
+
+  // Load chat history from appropriate source
   async function loadChatHistory() {
     try {
       let allSessions = [];
 
       console.log("Loading chat history with consentStatus:", consentStatus);
 
-      // Load anonymous sessions from sessionStorage ONLY if in anonymous mode
+      // Load anonymous sessions from sessionStorage if in anonymous mode
       if (consentStatus === false) {
         console.log("Loading anonymous sessions from sessionStorage");
         allSessions = getAnonymousSessions();
       } else if (consentStatus === true || consentStatus === null) {
-        // For authenticated users or when consent status is unknown, load from API only
+        // Load authenticated sessions from API
         console.log("Loading authenticated sessions from API (consentStatus:", consentStatus, ")");
         try {
           const res = await fetch("/api/chat/history/", {
@@ -1478,13 +1533,17 @@ document.addEventListener("DOMContentLoaded", function () {
     return new Date(dateStr).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
+  // ============================================
+  // UTILITY FUNCTIONS & EVENT HANDLERS
+  // ============================================
+
   // Refresh context button
   if (refreshBtn)
     refreshBtn.addEventListener("click", function () {
       fetchContext();
     });
 
-  // Helper function to check if current chat has any messages
+  // Check if current chat has any messages
   function hasMessages() {
     const messages = chatMessages.querySelectorAll(".chat-message, .thinking-indicator");
     return messages.length > 0;
@@ -1515,10 +1574,15 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
 
-  // Initial behaviors
+  // ============================================
+  // INITIALIZATION & STARTUP
+  // ============================================
+
+  // Initial page setup
   scrollToBottom();
   fetchContext();
-  // Check consent status first, then load chat history after it's determined
+
+  // Load consent status then chat history
   checkConsentStatus().then(() => {
     loadChatHistory();
   });
@@ -1531,7 +1595,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  // Initialize anonymous session and load history only after consent is checked
+  // Setup anonymous session
   initializeAnonymousSession();
 
   // ============================================
