@@ -376,7 +376,13 @@ def _validate_session_ownership(session, request):
 
 def _get_or_create_preferences(request):
     if request.user.is_authenticated:
-        prefs, _ = UserPreference.objects.get_or_create(user=request.user)
+        prefs, created = UserPreference.objects.get_or_create(user=request.user)
+        # Automatically enable storage consent for authenticated users if not already set
+        if created and not prefs.data_consent:
+            prefs.data_consent = True
+            prefs.consent_timestamp = timezone.now()
+            prefs.save()
+            audit_logger.info(f"Auto-enabled data storage for authenticated user: {request.user.id}")
         return prefs
     anon_id = _get_or_create_anon_id(request)
     prefs, _ = UserPreference.objects.get_or_create(anon_id=anon_id, user=None)
