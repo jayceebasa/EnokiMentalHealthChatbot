@@ -1133,10 +1133,21 @@ document.addEventListener("DOMContentLoaded", function () {
             async () => {
               // User chose to save
               console.log("User chose to SAVE anonymous chats");
+              
+              // First, update consent in backend so /api/chat/new/ will work
+              console.log("Setting consent to true first...");
+              await performConsentUpdate(consent, true); // skipReload = true
+              
+              // Now save anonymous chats with consent enabled
               const saveResult = await saveAnonymousChatToDatabase();
               console.log("Save result:", saveResult);
-              // Continue with consent update
-              await performConsentUpdate(consent);
+              
+              // Now reload to refresh with new chats
+              showNotification("Success", "Your conversations have been saved securely!", "success");
+              setTimeout(() => {
+                window.location.reload();
+              }, 1500);
+              
               resolve(true);
             },
             async () => {
@@ -1175,7 +1186,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // Perform the actual consent API call and page reload
-  async function performConsentUpdate(consent) {
+  async function performConsentUpdate(consent, skipReload = false) {
     try {
       const response = await fetch("/api/consent/", {
         method: "POST",
@@ -1200,8 +1211,10 @@ document.addEventListener("DOMContentLoaded", function () {
           duration: 4000
         }));
 
-        // Reload page to refresh chat history after consent change
-        window.location.reload();
+        // Only reload page if not skipping (skipReload is used during migration)
+        if (!skipReload) {
+          window.location.reload();
+        }
       } else {
         throw new Error("Failed to update consent");
       }
@@ -1267,6 +1280,7 @@ document.addEventListener("DOMContentLoaded", function () {
           };
 
           console.log("Message payload being sent:", JSON.stringify(messagePayload, null, 2));
+          console.log("Payload details - session_id:", messagePayload.session_id, "messages count:", messagePayload.messages.length);
 
           // Try to save all messages via POST to the backend
           const saveRes = await fetch("/api/chat/save-messages/", {
