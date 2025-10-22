@@ -473,6 +473,17 @@ def chat(request):
         prefs.tone = request.POST.get("tone", prefs.tone)[:32]
         prefs.language = request.POST.get("language", prefs.language)[:8]
         prefs.save()
+        
+        # Clear cache to ensure fresh preferences are loaded
+        if request.user.is_authenticated:
+            cache_key = f"user_prefs_{request.user.id}"
+            cache.delete(cache_key)
+        else:
+            anon_id = request.session.get('anon_id')
+            if anon_id:
+                cache_key = f"anon_prefs_{anon_id}"
+                cache.delete(cache_key)
+        
         return redirect("chat")
 
     reply, emotions = None, []

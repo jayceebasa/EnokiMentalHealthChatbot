@@ -471,6 +471,17 @@ document.addEventListener("DOMContentLoaded", function () {
   if (closeSettings) closeSettings.addEventListener("click", closeSettingsPanel);
   if (settingsOverlay) settingsOverlay.addEventListener("click", closeSettingsPanel);
 
+  // Preferences form submission handler
+  const preferencesForm = document.querySelector(".preferences-form");
+  if (preferencesForm) {
+    preferencesForm.addEventListener("submit", function (e) {
+      // Allow normal form submission to the server
+      // No need to prevent default - let Django handle it
+      showNotification("✓ Preferences Saved", "Your settings have been updated successfully.", "success", 3000);
+      // The form will submit naturally and refresh the page
+    });
+  }
+
   // History panel handlers
   if (historyToggle) historyToggle.addEventListener("click", openHistory);
   if (closeHistory) closeHistory.addEventListener("click", closeHistoryPanel);
@@ -498,11 +509,9 @@ document.addEventListener("DOMContentLoaded", function () {
       const isAuthenticated = window.isAuthenticated || false;
 
       if (wantsSecureMode && !isAuthenticated) {
-        // Anonymous user trying to enable secure mode - redirect to login
+        // Anonymous user trying to enable secure mode - show login prompt modal
         hideConsentModal();
-        if (confirm("Secure storage requires an account. Would you like to create an account or log in now?")) {
-          window.location.href = "/login/";
-        }
+        showLoginPromptModal();
         return;
       }
 
@@ -528,15 +537,59 @@ document.addEventListener("DOMContentLoaded", function () {
       const isAuthenticated = window.isAuthenticated || false;
 
       if (!isAuthenticated) {
-        // Anonymous user - redirect to login
-        if (confirm("You need to create an account or log in to enable data storage. Would you like to go to the login page now?")) {
-          window.location.href = "/login/";
-        }
+        // Anonymous user - show custom login prompt modal
+        showLoginPromptModal();
       } else {
         // Authenticated user - show consent modal
         showConsentModal();
       }
     });
+  }
+
+  // ============================================
+  // LOGIN PROMPT MODAL
+  // ============================================
+
+  // Show custom login prompt modal
+  function showLoginPromptModal() {
+    const overlay = document.getElementById("login-prompt-overlay");
+    const modal = document.getElementById("login-prompt-modal");
+    const cancelBtn = document.getElementById("login-prompt-cancel");
+    const proceedBtn = document.getElementById("login-prompt-proceed");
+
+    if (!overlay || !modal) {
+      console.error("Login prompt modal elements not found!");
+      return;
+    }
+
+    overlay.style.display = "block";
+    modal.classList.add("show");
+
+    // Cancel button closes the modal
+    cancelBtn.onclick = function () {
+      hideLoginPromptModal();
+    };
+
+    // Proceed button redirects to login
+    proceedBtn.onclick = function () {
+      window.location.href = "/login/";
+    };
+
+    // Close on overlay click
+    overlay.onclick = function () {
+      hideLoginPromptModal();
+    };
+  }
+
+  // Hide login prompt modal
+  function hideLoginPromptModal() {
+    const overlay = document.getElementById("login-prompt-overlay");
+    const modal = document.getElementById("login-prompt-modal");
+
+    if (overlay && modal) {
+      overlay.style.display = "none";
+      modal.classList.remove("show");
+    }
   }
 
   // ============================================

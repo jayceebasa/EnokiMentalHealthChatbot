@@ -291,6 +291,21 @@
       </p>
     </div>
 
+    <!-- Login Prompt Modal -->
+    <div class="settings-overlay" id="login-prompt-overlay"></div>
+    <div class="delete-confirm-modal" id="login-prompt-modal" style="max-width: 400px;">
+      <div class="delete-modal-content">
+        <div class="delete-modal-icon">🔐</div>
+        <h3>Enable Secure Storage</h3>
+        <p id="login-prompt-message">You need to create an account or log in to enable data storage. This allows your conversations to be saved securely and continued across sessions.</p>
+        <div class="delete-modal-buttons">
+          <button class="delete-btn-cancel" id="login-prompt-cancel">Cancel</button>
+          <button class="delete-btn-confirm" id="login-prompt-proceed">Go to Login</button>
+        </div>
+      </div>
+    </div>
+
     <script src="{% static 'js/chat.js' %}"></script>
   </body>
 </html>
+
