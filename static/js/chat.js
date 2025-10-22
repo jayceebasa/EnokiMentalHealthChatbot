@@ -386,6 +386,23 @@ document.addEventListener("DOMContentLoaded", function () {
     return toast;
   }
 
+  // Check for pending notification from page reload (e.g., after privacy setting change)
+  function checkPendingNotification() {
+    const pendingNotificationStr = sessionStorage.getItem("pendingNotification");
+    if (pendingNotificationStr) {
+      try {
+        const notification = JSON.parse(pendingNotificationStr);
+        sessionStorage.removeItem("pendingNotification");
+        
+        // Show the notification
+        showNotification(notification.title, notification.message, notification.type, notification.duration);
+        console.log("Displayed pending notification:", notification);
+      } catch (e) {
+        console.error("Error parsing pending notification:", e);
+      }
+    }
+  }
+
   // ============================================
   // DELETE CONFIRMATION MODAL
   // ============================================
@@ -460,6 +477,17 @@ document.addEventListener("DOMContentLoaded", function () {
         
         showNotification("Chat Deleted", "This conversation has been removed.", "success");
         loadChatHistory();
+        
+        // After chat history is reloaded, find empty chat or create a new one
+        setTimeout(() => {
+          const emptySessionId = findEmptyChat();
+          if (emptySessionId) {
+            loadChatSession(emptySessionId);
+          } else {
+            startNewChat();
+          }
+        }, 100);
+        
         return;
       }
 
@@ -475,6 +503,16 @@ document.addEventListener("DOMContentLoaded", function () {
       if (response.ok) {
         showNotification("Chat Deleted", "This conversation has been removed.", "success");
         loadChatHistory();
+        
+        // After chat history is reloaded, find empty chat or create a new one
+        setTimeout(() => {
+          const emptySessionId = findEmptyChat();
+          if (emptySessionId) {
+            loadChatSession(emptySessionId);
+          } else {
+            startNewChat();
+          }
+        }, 100);
       } else {
         const data = await response.json();
         showNotification("Error", data.error || "Failed to delete chat", "error");
@@ -1060,15 +1098,16 @@ document.addEventListener("DOMContentLoaded", function () {
         updateConsentUI();
         hideConsentModal();
 
-        // Reload page first to refresh chat history after consent change
-        window.location.reload();
+        // Store notification in sessionStorage before reload
+        sessionStorage.setItem("pendingNotification", JSON.stringify({
+          title: consent ? "Secure Storage Enabled" : "Anonymous Mode Enabled",
+          message: consent ? "Your conversations will be saved securely." : "Your conversations will not be saved.",
+          type: "success",
+          duration: 4000
+        }));
 
-        // Show feedback as toast notification after page reloads
-        window.addEventListener("load", function () {
-          const feedbackTitle = consent ? "Secure Storage Enabled" : "Anonymous Mode Enabled";
-          const feedbackMessage = consent ? "Your conversations will be saved securely." : "Your conversations will not be saved.";
-          showNotification(feedbackTitle, feedbackMessage, "success", 4000);
-        });
+        // Reload page to refresh chat history after consent change
+        window.location.reload();
 
         return true;
       } else {
@@ -1781,6 +1820,9 @@ document.addEventListener("DOMContentLoaded", function () {
   // Initial page setup
   scrollToBottom();
   fetchContext();
+
+  // Check for pending notification from page reload
+  checkPendingNotification();
 
   // Load consent status then chat history
   checkConsentStatus().then(async () => {
