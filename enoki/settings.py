@@ -241,15 +241,19 @@ SOCIAL_AUTH_LOGIN_REDIRECT_URL = '/chat/'
 SOCIAL_AUTH_LOGIN_ERROR_URL = '/login/'
 SOCIAL_AUTH_NEW_USER_REDIRECT_URL = '/chat/'
 
-# OAuth pipeline - customize user creation
+# OAuth pipeline - SECURITY: Prevent account linking/merging
+# Custom pipeline ensures OAuth accounts never merge with password accounts
 SOCIAL_AUTH_PIPELINE = (
     'social_core.pipeline.social_auth.social_details',
     'social_core.pipeline.social_auth.social_uid',
     'social_core.pipeline.social_auth.auth_allowed',
+    # SECURITY: Check if email belongs to password account before linking
+    'core.oauth_pipeline.prevent_account_linking',
+    'core.oauth_pipeline.prevent_new_user_from_oauth_duplicate_email',
     'social_core.pipeline.social_auth.social_user',
     'social_core.pipeline.user.get_username',
     'social_core.pipeline.user.create_user',
-    'social_core.pipeline.social_auth.associate_user',
+    # REMOVED: 'social_core.pipeline.social_auth.associate_user' - This was allowing linking
     'social_core.pipeline.social_auth.load_extra_data',
     'social_core.pipeline.user.user_details',
 )
