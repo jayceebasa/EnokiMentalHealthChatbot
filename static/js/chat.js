@@ -1134,10 +1134,9 @@ document.addEventListener("DOMContentLoaded", function () {
               // User chose to save
               console.log("User chose to SAVE anonymous chats");
               
-              // Update consent and save messages, then reload once
               try {
-                // Update consent in backend
-                console.log("Setting consent to true...");
+                // Step 1: Update consent in backend first (so /api/chat/new/ will work)
+                console.log("Step 1: Setting consent to true in backend...");
                 const consentRes = await fetch("/api/consent/", {
                   method: "POST",
                   headers: {
@@ -1151,21 +1150,27 @@ document.addEventListener("DOMContentLoaded", function () {
                   throw new Error("Failed to update consent");
                 }
 
-                // Update local state immediately
+                console.log("Step 2: Saving anonymous chats to database...");
+                // Step 2: Save all anonymous chats to database
+                const saveResult = await saveAnonymousChatToDatabase();
+                console.log("Save result:", saveResult);
+
+                // Step 3: Update local state AFTER save is complete
+                console.log("Step 3: Updating local consent state and UI...");
                 consentStatus = true;
                 updateConsentUI();
                 hideConsentModal();
 
-                // Now save anonymous chats with consent enabled
-                console.log("Saving anonymous chats to database...");
-                const saveResult = await saveAnonymousChatToDatabase();
-                console.log("Save result:", saveResult);
+                // Step 4: Store notification and reload
+                sessionStorage.setItem("pendingNotification", JSON.stringify({
+                  title: "Secure Storage Enabled",
+                  message: "Your conversations have been saved securely!",
+                  type: "success",
+                  duration: 4000
+                }));
 
-                // Single reload to show everything
-                showNotification("Success", "Your conversations have been saved securely!", "success");
-                setTimeout(() => {
-                  window.location.reload();
-                }, 1000);
+                console.log("Step 5: Reloading page to show all saved chats...");
+                window.location.reload();
               } catch (error) {
                 console.error("Error during save migration:", error);
                 showNotification("Error", "Failed to save conversations. Please try again.", "error");
