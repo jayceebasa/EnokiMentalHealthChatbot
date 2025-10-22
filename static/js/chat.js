@@ -1060,15 +1060,15 @@ document.addEventListener("DOMContentLoaded", function () {
         updateConsentUI();
         hideConsentModal();
 
-        // Show feedback as toast notification only (not in chat)
-        const feedbackTitle = consent ? "Secure Storage Enabled" : "Anonymous Mode Enabled";
-        const feedbackMessage = consent ? "Your conversations will be saved securely." : "Your conversations will not be saved.";
-        showNotification(feedbackTitle, feedbackMessage, "success", 4000);
+        // Reload page first to refresh chat history after consent change
+        window.location.reload();
 
-        // Reload page to refresh chat history after consent change
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
+        // Show feedback as toast notification after page reloads
+        window.addEventListener("load", function () {
+          const feedbackTitle = consent ? "Secure Storage Enabled" : "Anonymous Mode Enabled";
+          const feedbackMessage = consent ? "Your conversations will be saved securely." : "Your conversations will not be saved.";
+          showNotification(feedbackTitle, feedbackMessage, "success", 4000);
+        });
 
         return true;
       } else {
@@ -1718,10 +1718,31 @@ document.addEventListener("DOMContentLoaded", function () {
     return messages.length > 0;
   }
 
+  // Find the first empty chat (with 0 messages) in the chat history
+  function findEmptyChat() {
+    const chatSessions = document.querySelectorAll(".chat-session");
+    for (let session of chatSessions) {
+      const messageCountText = session.querySelector(".session-meta span")?.textContent;
+      const messageCount = messageCountText ? parseInt(messageCountText) : 0;
+      if (messageCount === 0) {
+        return session.dataset.sessionId;
+      }
+    }
+    return null;
+  }
+
   // New chat button
   if (newChatBtn)
     newChatBtn.addEventListener("click", function () {
+      // If no messages in current chat, check if there's an empty chat to redirect to
       if (!hasMessages()) {
+        const emptySessionId = findEmptyChat();
+        if (emptySessionId) {
+          // Load the empty chat instead of showing notification
+          loadChatSession(emptySessionId);
+          return;
+        }
+        // If no empty chat exists, show the original notification
         showNotification("🍄 Let's Chat First!", "Start a conversation before creating a new chat. Every conversation matters!", "info", 4500);
         return;
       }
@@ -1734,7 +1755,15 @@ document.addEventListener("DOMContentLoaded", function () {
   const newChatBtnHistory = document.getElementById("new-chat-btn-history");
   if (newChatBtnHistory)
     newChatBtnHistory.addEventListener("click", function () {
+      // If no messages in current chat, check if there's an empty chat to redirect to
       if (!hasMessages()) {
+        const emptySessionId = findEmptyChat();
+        if (emptySessionId) {
+          // Load the empty chat instead of showing notification
+          loadChatSession(emptySessionId);
+          return;
+        }
+        // If no empty chat exists, show the original notification
         showNotification("🍄 Let's Chat First!", "Start a conversation before creating a new chat. Every conversation matters!", "info", 4500);
         return;
       }
