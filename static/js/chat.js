@@ -1134,19 +1134,42 @@ document.addEventListener("DOMContentLoaded", function () {
               // User chose to save
               console.log("User chose to SAVE anonymous chats");
               
-              // First, update consent in backend so /api/chat/new/ will work
-              console.log("Setting consent to true first...");
-              await performConsentUpdate(consent, true); // skipReload = true
-              
-              // Now save anonymous chats with consent enabled
-              const saveResult = await saveAnonymousChatToDatabase();
-              console.log("Save result:", saveResult);
-              
-              // Now reload to refresh with new chats
-              showNotification("Success", "Your conversations have been saved securely!", "success");
-              setTimeout(() => {
-                window.location.reload();
-              }, 1500);
+              // Update consent and save messages, then reload once
+              try {
+                // Update consent in backend
+                console.log("Setting consent to true...");
+                const consentRes = await fetch("/api/consent/", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCSRFToken(),
+                  },
+                  body: JSON.stringify({ consent: true }),
+                });
+
+                if (!consentRes.ok) {
+                  throw new Error("Failed to update consent");
+                }
+
+                // Update local state immediately
+                consentStatus = true;
+                updateConsentUI();
+                hideConsentModal();
+
+                // Now save anonymous chats with consent enabled
+                console.log("Saving anonymous chats to database...");
+                const saveResult = await saveAnonymousChatToDatabase();
+                console.log("Save result:", saveResult);
+
+                // Single reload to show everything
+                showNotification("Success", "Your conversations have been saved securely!", "success");
+                setTimeout(() => {
+                  window.location.reload();
+                }, 1000);
+              } catch (error) {
+                console.error("Error during save migration:", error);
+                showNotification("Error", "Failed to save conversations. Please try again.", "error");
+              }
               
               resolve(true);
             },
@@ -1156,7 +1179,7 @@ document.addEventListener("DOMContentLoaded", function () {
               chatMessages.innerHTML = "";
               clearIntroMessage();
               createAnonymousSession();
-              // Continue with consent update
+              // Continue with consent update (will reload once)
               await performConsentUpdate(consent);
               resolve(true);
             }
@@ -1186,7 +1209,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // Perform the actual consent API call and page reload
-  async function performConsentUpdate(consent, skipReload = false) {
+  async function performConsentUpdate(consent) {
     try {
       const response = await fetch("/api/consent/", {
         method: "POST",
@@ -1211,10 +1234,8 @@ document.addEventListener("DOMContentLoaded", function () {
           duration: 4000
         }));
 
-        // Only reload page if not skipping (skipReload is used during migration)
-        if (!skipReload) {
-          window.location.reload();
-        }
+        // Reload page to refresh chat history after consent change
+        window.location.reload();
       } else {
         throw new Error("Failed to update consent");
       }
