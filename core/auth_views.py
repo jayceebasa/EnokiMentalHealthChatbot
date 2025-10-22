@@ -14,8 +14,16 @@ def _transfer_anonymous_consent(request, user):
         # Get or create user preferences FIRST to ensure it exists
         user_prefs, created = UserPreference.objects.get_or_create(user=user)
         
-        # Check if there was an anonymous session with consent
-        anon_id = request.session.get('anon_id')
+        # Check for pending anonymous migration first (comes from the save flow)
+        pending_migration = request.session.get('pending_anon_migration')
+        if pending_migration:
+            anon_id = pending_migration.get('anon_id')
+            # Clear the pending migration flag
+            del request.session['pending_anon_migration']
+        else:
+            # Fall back to regular anon_id from session
+            anon_id = request.session.get('anon_id')
+        
         if not anon_id:
             return
         

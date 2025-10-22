@@ -1154,13 +1154,33 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (!isAuthenticated) {
                   // User is not logged in - save as anonymous first, they'll log in after
                   console.log("User not logged in - saving as anonymous chats...");
+                  
+                  // First, mark this anonymous session for migration
+                  console.log("Marking anonymous session for migration...");
+                  try {
+                    const markRes = await fetch("/api/chat/mark-anon-migration/", {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": getCSRFToken(),
+                      },
+                      credentials: "same-origin",
+                    });
+                    if (markRes.ok) {
+                      const markData = await markRes.json();
+                      console.log("Anonymous session marked for migration:", markData.anon_id);
+                    }
+                  } catch (e) {
+                    console.error("Error marking anonymous session:", e);
+                  }
+                  
                   const saveResult = await saveAnonymousChatToDatabase();
                   console.log("Anonymous save result:", saveResult);
                   
                   // Redirect to login page
                   showNotification("Almost There!", "Please log in to securely save your conversations.", "info");
                   setTimeout(() => {
-                    window.location.href = '/login/';
+                    window.location.href = '/login/?anon_migration=true';
                   }, 2000);
                   resolve(true);
                   return;

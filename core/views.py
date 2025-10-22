@@ -776,6 +776,41 @@ def api_save_messages(request):
 
 
 @csrf_exempt
+@require_http_methods(["POST"])
+def api_mark_anon_for_migration(request):
+    """Mark the current anonymous session for migration after login.
+    This endpoint should be called before redirecting to login, so we can
+    store the anon_id in a secure way that persists across login.
+    """
+    try:
+        logging.info("api_mark_anon_for_migration called")
+        
+        if request.user.is_authenticated:
+            # User is already authenticated, no need to mark for migration
+            return JsonResponse({'error': 'User already authenticated'}, status=400)
+        
+        # Get the current anon_id
+        anon_id = _get_or_create_anon_id(request)
+        logging.info(f"Marking anon_id for migration: {anon_id}")
+        
+        # Store the anon_id in the session with a flag
+        request.session['pending_anon_migration'] = {
+            'anon_id': anon_id,
+            'timestamp': timezone.now().isoformat()
+        }
+        request.session.save()  # Explicitly save session
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Anonymous session marked for migration',
+            'anon_id': anon_id
+        })
+    except Exception as e:
+        logging.error(f"Error marking anon for migration: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
 @require_http_methods(["GET"])
 def api_chat_sessions(request):
     """Get all chat sessions for the current user/anonymous user - with caching"""
