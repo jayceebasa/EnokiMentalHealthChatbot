@@ -1052,23 +1052,67 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // Handle consent preference changes
+  // Show migration modal for saving anonymous chat to secure storage
+  function showMigrationModal(onSave, onCancel) {
+    const overlay = document.getElementById("migration-overlay");
+    const modal = document.getElementById("migration-modal");
+    const cancelBtn = document.getElementById("migration-cancel");
+    const proceedBtn = document.getElementById("migration-proceed");
+
+    if (!overlay || !modal) {
+      console.error("Migration modal elements not found!");
+      return;
+    }
+
+    overlay.style.display = "block";
+    modal.classList.add("show");
+
+    function closeModal() {
+      overlay.style.display = "none";
+      modal.classList.remove("show");
+    }
+
+    cancelBtn.onclick = function () {
+      closeModal();
+      if (onCancel) onCancel();
+    };
+
+    proceedBtn.onclick = function () {
+      closeModal();
+      if (onSave) onSave();
+    };
+
+    // Close on overlay click
+    overlay.onclick = function () {
+      closeModal();
+      if (onCancel) onCancel();
+    };
+  }
+
   async function updateConsent(consent) {
     try {
       // Handle migration from anonymous to secure mode
       if (consent === true && consentStatus === false && hasMessages()) {
-        const saveChat = confirm(
-          "You have an ongoing conversation in anonymous mode. Would you like to save this conversation to your secure storage before enabling it?\n\nClick OK to save, or Cancel to start fresh."
-        );
-
-        if (saveChat) {
-          // Migrate anonymous chat to secure database storage
-          await saveAnonymousChatToDatabase();
-        } else {
-          // Clear current chat and start fresh anonymous session
-          chatMessages.innerHTML = "";
-          clearIntroMessage();
-          createAnonymousSession();
-        }
+        return new Promise((resolve) => {
+          showMigrationModal(
+            async () => {
+              // User chose to save
+              await saveAnonymousChatToDatabase();
+              // Continue with consent update
+              await performConsentUpdate(consent);
+              resolve(true);
+            },
+            async () => {
+              // User chose to start fresh
+              chatMessages.innerHTML = "";
+              clearIntroMessage();
+              createAnonymousSession();
+              // Continue with consent update
+              await performConsentUpdate(consent);
+              resolve(true);
+            }
+          );
+        });
       }
       
       // If entering anonymous mode (consent = false), always create a fresh session
@@ -1083,6 +1127,18 @@ document.addEventListener("DOMContentLoaded", function () {
         createAnonymousSession();
       }
 
+      await performConsentUpdate(consent);
+      return true;
+    } catch (error) {
+      console.error("Error updating consent:", error);
+      showNotification("Error", "Failed to update privacy setting. Please try again.", "error");
+      return false;
+    }
+  }
+
+  // Perform the actual consent API call and page reload
+  async function performConsentUpdate(consent) {
+    try {
       const response = await fetch("/api/consent/", {
         method: "POST",
         headers: {
@@ -1108,40 +1164,95 @@ document.addEventListener("DOMContentLoaded", function () {
 
         // Reload page to refresh chat history after consent change
         window.location.reload();
-
-        return true;
       } else {
         throw new Error("Failed to update consent");
       }
     } catch (error) {
       console.error("Error updating consent:", error);
-      showNotification("Error", "Failed to update privacy setting. Please try again.", "error");
-      return false;
+      throw error;
     }
   }
 
   // Save current anonymous chat to database
   async function saveAnonymousChatToDatabase() {
     try {
-      const sessionId = getCurrentAnonymousSessionId();
-      if (!sessionId) return false;
+      // Get ALL anonymous sessions, not just the current one
+      const allSessions = getAnonymousSessions();
+      
+      if (!allSessions || allSessions.length === 0) {
+        console.error("No anonymous sessions found");
+        return false;
+      }
 
-      const session = getAnonymousSessions().find((s) => s.id === sessionId);
-      if (!session || !session.messages.length) return false;
+      // Filter out empty sessions (only save chats with messages)
+      const sessionsToSave = allSessions.filter(session => session.messages && session.messages.length > 0);
+      
+      if (sessionsToSave.length === 0) {
+        console.error("No chats with messages found to save");
+        return false;
+      }
 
-      // Send all messages to create a new database session
-      for (const message of session.messages) {
-        // Only need to send user messages as AI responses are generated
-        if (message.sender === "user") {
-          // We can just mark this happened, but actual saving happens via /api/chat/
-          console.log("Message queued for saving:", message.text);
+      console.log(`Saving ${sessionsToSave.length} chat(s) with messages to database (skipped ${allSessions.length - sessionsToSave.length} empty chat(s))...`);
+
+      // Save each anonymous session as a separate chat session in the database
+      for (const session of sessionsToSave) {
+        try {
+          // Create a new chat session on the backend
+          const newChatRes = await fetch("/api/chat/new/", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": getCSRFToken(),
+            },
+            credentials: "same-origin",
+          });
+
+          if (!newChatRes.ok) {
+            console.error("Failed to create new chat session for:", session.id);
+            continue;
+          }
+
+          const newChatData = await newChatRes.json();
+          const newChatId = newChatData.session_id;
+
+          console.log(`Created new chat session for anonymous chat ${session.id}:`, newChatId);
+
+          // Save all messages from this session to the database
+          for (const message of session.messages) {
+            const saveMessageRes = await fetch("/api/chat/message/", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCSRFToken(),
+              },
+              credentials: "same-origin",
+              body: JSON.stringify({
+                text: message.text,
+                sender: message.sender,
+                chat_session: newChatId,
+              }),
+            });
+
+            if (!saveMessageRes.ok) {
+              console.error("Failed to save message:", message.text);
+            } else {
+              console.log("Saved message:", message.text.substring(0, 50));
+            }
+          }
+
+          console.log(`Completed saving session: ${session.id} to chat: ${newChatId}`);
+        } catch (sessionError) {
+          console.error("Error saving individual session:", sessionError);
+          // Continue with next session even if one fails
+          continue;
         }
       }
 
-      console.log("Anonymous chat prepared for database storage");
+      console.log("All anonymous chats successfully saved to database");
       return true;
     } catch (error) {
-      console.error("Error saving anonymous chat:", error);
+      console.error("Error saving anonymous chats to database:", error);
+      showNotification("Error", "Failed to save conversations. Please try again.", "error");
       return false;
     }
   }

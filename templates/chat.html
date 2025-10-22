@@ -304,6 +304,21 @@
       </div>
     </div>
 
+    <!-- Migration Modal - Save Anonymous Chat to Secure Storage -->
+    <div class="settings-overlay" id="migration-overlay"></div>
+    <div class="delete-confirm-modal" id="migration-modal">
+      <div class="delete-modal-content">
+        <div class="delete-modal-icon">💾</div>
+        <h3>Save Your Conversation?</h3>
+        <p>You have an ongoing conversation in anonymous mode. Would you like to save this conversation to your secure storage before enabling it?</p>
+        <p style="font-size: 0.9rem; color: #718096; margin-top: 0.5rem;">Your messages will be saved securely and you can continue our conversation anytime.</p>
+        <div class="delete-modal-buttons">
+          <button class="delete-btn-cancel" id="migration-cancel">Start Fresh</button>
+          <button class="delete-btn-confirm" id="migration-proceed">Save Conversation</button>
+        </div>
+      </div>
+    </div>
+
     <script src="{% static 'js/chat.js' %}"></script>
   </body>
 </html>
