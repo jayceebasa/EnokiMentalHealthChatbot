@@ -655,6 +655,38 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // ============================================
+  // NEW CHAT CONFIRMATION MODAL
+  // ============================================
+
+  function showNewChatConfirmation() {
+    const overlay = document.getElementById("new-chat-confirm-overlay");
+    const modal = document.getElementById("new-chat-modal");
+    const cancelBtn = document.getElementById("new-chat-confirm-cancel");
+    const confirmBtn = document.getElementById("new-chat-confirm-proceed");
+
+    if (!overlay || !modal) {
+      console.error("New chat confirmation modal elements not found!");
+      return;
+    }
+
+    modal.classList.add("show");
+    overlay.style.display = "block";
+
+    function closeModal() {
+      modal.classList.remove("show");
+      overlay.style.display = "none";
+    }
+
+    cancelBtn.onclick = closeModal;
+    overlay.onclick = closeModal;
+
+    confirmBtn.onclick = function () {
+      closeModal();
+      startNewChat();
+    };
+  }
+
+  // ============================================
   // LOGIN PROMPT MODAL
   // ============================================
 
@@ -1091,19 +1123,25 @@ document.addEventListener("DOMContentLoaded", function () {
 
   async function updateConsent(consent) {
     try {
+      console.log("updateConsent called with consent:", consent, "consentStatus:", consentStatus, "hasMessages:", hasMessages());
+      
       // Handle migration from anonymous to secure mode
       if (consent === true && consentStatus === false && hasMessages()) {
+        console.log("Showing migration modal - user has messages in anonymous mode");
         return new Promise((resolve) => {
           showMigrationModal(
             async () => {
               // User chose to save
-              await saveAnonymousChatToDatabase();
+              console.log("User chose to SAVE anonymous chats");
+              const saveResult = await saveAnonymousChatToDatabase();
+              console.log("Save result:", saveResult);
               // Continue with consent update
               await performConsentUpdate(consent);
               resolve(true);
             },
             async () => {
               // User chose to start fresh
+              console.log("User chose to START FRESH");
               chatMessages.innerHTML = "";
               clearIntroMessage();
               createAnonymousSession();
@@ -1228,6 +1266,8 @@ document.addEventListener("DOMContentLoaded", function () {
             }))
           };
 
+          console.log("Message payload being sent:", JSON.stringify(messagePayload, null, 2));
+
           // Try to save all messages via POST to the backend
           const saveRes = await fetch("/api/chat/save-messages/", {
             method: "POST",
@@ -1239,12 +1279,19 @@ document.addEventListener("DOMContentLoaded", function () {
             body: JSON.stringify(messagePayload),
           });
 
+          console.log(`Save response status: ${saveRes.status}, ok: ${saveRes.ok}`);
+          
           if (saveRes.ok) {
             const saveData = await saveRes.json();
             console.log(`Successfully saved ${saveData.messages_saved} messages to chat: ${newChatId}`);
           } else {
-            const errorData = await saveRes.json();
-            console.error(`Failed to save messages: ${errorData.error}`);
+            try {
+              const errorData = await saveRes.json();
+              console.error(`Failed to save messages: ${errorData.error}`);
+            } catch (e) {
+              const errorText = await saveRes.text();
+              console.error(`Failed to save messages: ${errorText}`);
+            }
           }
 
           console.log(`Completed saving session: ${session.id} to chat: ${newChatId}`);
@@ -1904,9 +1951,7 @@ document.addEventListener("DOMContentLoaded", function () {
         showNotification("🍄 Let's Chat First!", "Start a conversation before creating a new chat. Every conversation matters!", "info", 4500);
         return;
       }
-      if (confirm("Start a new chat? Your current conversation will be saved to history.")) {
-        startNewChat();
-      }
+      showNewChatConfirmation();
     });
 
   // New chat button in history panel (large screens)
@@ -1926,9 +1971,7 @@ document.addEventListener("DOMContentLoaded", function () {
         showNotification("🍄 Let's Chat First!", "Start a conversation before creating a new chat. Every conversation matters!", "info", 4500);
         return;
       }
-      if (confirm("Start a new chat? Your current conversation will be saved to history.")) {
-        startNewChat();
-      }
+      showNewChatConfirmation();
     });
 
   // ============================================

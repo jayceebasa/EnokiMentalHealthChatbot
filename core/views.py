@@ -690,26 +690,34 @@ def api_new_chat(request):
 def api_save_messages(request):
     """Save multiple messages to an existing chat session (used for migration from anonymous mode)."""
     try:
+        logging.info("api_save_messages called")
         data = json.loads(request.body)
         session_id = data.get('session_id')
         messages = data.get('messages', [])
         
+        logging.info(f"Received session_id={session_id}, messages_count={len(messages)}")
+        
         if not session_id or not messages:
+            logging.error(f"Invalid parameters: session_id={session_id}, messages={len(messages)}")
             return JsonResponse({'error': 'session_id and messages are required'}, status=400)
         
         # Verify the session exists and belongs to the user
         try:
             session = ChatSession.objects.get(id=session_id)
+            logging.info(f"Found session: {session_id}")
             
             # Check authorization
             if request.user.is_authenticated:
                 if session.user != request.user:
+                    logging.error(f"Unauthorized: session user={session.user}, request user={request.user}")
                     return JsonResponse({'error': 'Unauthorized'}, status=403)
             else:
                 anon_id = _get_or_create_anon_id(request)
                 if session.anon_id != anon_id:
+                    logging.error(f"Unauthorized: session anon_id={session.anon_id}, request anon_id={anon_id}")
                     return JsonResponse({'error': 'Unauthorized'}, status=403)
         except ChatSession.DoesNotExist:
+            logging.error(f"Session not found: {session_id}")
             return JsonResponse({'error': 'Session not found'}, status=404)
         
         # Save each message to the session
@@ -721,6 +729,7 @@ def api_save_messages(request):
                 created_at = msg_data.get('created_at')
                 
                 if not message_text:
+                    logging.debug("Skipping empty message")
                     continue
                 
                 msg = Message(
@@ -730,13 +739,21 @@ def api_save_messages(request):
                 )
                 
                 if created_at:
-                    msg.created_at = created_at
+                    try:
+                        # Parse ISO format datetime
+                        from django.utils.dateparse import parse_datetime
+                        msg.created_at = parse_datetime(created_at)
+                    except:
+                        logging.warning(f"Could not parse created_at: {created_at}")
                 
                 msg.save()
                 saved_count += 1
+                logging.info(f"Saved message: {message_text[:50]}...")
             except Exception as msg_err:
                 logging.error(f"Error saving individual message: {msg_err}")
                 continue
+        
+        logging.info(f"Total messages saved: {saved_count}")
         
         # Invalidate cache
         if request.user.is_authenticated:
@@ -750,10 +767,11 @@ def api_save_messages(request):
             'messages_saved': saved_count,
             'message': f'Successfully saved {saved_count} messages'
         })
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        logging.error(f"JSON decode error: {e}")
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
-        logging.error(f"Error saving messages: {e}")
+        logging.error(f"Error saving messages: {e}", exc_info=True)
         return JsonResponse({'error': str(e)}, status=500)
 
 

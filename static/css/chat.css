@@ -1906,6 +1906,118 @@ input[type="text"]:focus {
 }
 
 /* ============================================
+   NEW CHAT MODAL
+   ============================================ */
+.new-chat-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  border-radius: 16px;
+  padding: 0;
+  z-index: 9999;
+  min-width: 350px;
+  max-width: 450px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  display: none;
+  animation: modalScaleIn 0.3s ease;
+}
+
+.new-chat-modal.show {
+  display: block;
+}
+
+.new-chat-modal-content {
+  padding: 2rem;
+  text-align: center;
+}
+
+.new-chat-modal-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  animation: sparkle 0.6s ease;
+  display: inline-block;
+}
+
+@keyframes sparkle {
+  0% {
+    transform: scale(0) rotate(-180deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1) rotate(10deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+    opacity: 1;
+  }
+}
+
+.new-chat-modal h3 {
+  font-size: 1.5rem;
+  color: #1f2937;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+.new-chat-modal p {
+  color: #6b7280;
+  margin-bottom: 2rem;
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
+.new-chat-modal-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.new-chat-btn-cancel,
+.new-chat-btn-confirm {
+  padding: 0.75rem 2rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+  min-width: 120px;
+}
+
+.new-chat-btn-cancel {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+}
+
+.new-chat-btn-cancel:hover {
+  background: #e5e7eb;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.new-chat-btn-cancel:active {
+  transform: translateY(0);
+}
+
+.new-chat-btn-confirm {
+  background: linear-gradient(135deg, #4ecdc4 0%, #45b7d1 100%);
+  color: white;
+}
+
+.new-chat-btn-confirm:hover {
+  background: linear-gradient(135deg, #45b7d1 0%, #3d9db5 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(78, 205, 196, 0.3);
+}
+
+.new-chat-btn-confirm:active {
+  transform: translateY(0);
+}
+
+/* ============================================
    MOBILE RESPONSIVE
    ============================================ */
 @media (max-width: 600px) {
@@ -1921,6 +2033,11 @@ input[type="text"]:focus {
   }
 
   .delete-confirm-modal {
+    min-width: 90%;
+    max-width: 90%;
+  }
+
+  .new-chat-modal {
     min-width: 90%;
     max-width: 90%;
   }
