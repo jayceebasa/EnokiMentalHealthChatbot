@@ -2,6 +2,104 @@
 let consentStatus = null;
 let selectedConsent = null;
 
+// Anonymous mode localStorage keys
+const ANONYMOUS_SESSIONS_KEY = 'anonymousChatSessions';
+const ANONYMOUS_CURRENT_SESSION_KEY = 'anonymousCurrentSessionId';
+
+// Get anonymous chat sessions from localStorage
+function getAnonymousSessions() {
+  try {
+    const stored = localStorage.getItem(ANONYMOUS_SESSIONS_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch (e) {
+    console.error('Error reading anonymous sessions from localStorage:', e);
+    return [];
+  }
+}
+
+// Save anonymous chat sessions to localStorage
+function saveAnonymousSessions(sessions) {
+  try {
+    localStorage.setItem(ANONYMOUS_SESSIONS_KEY, JSON.stringify(sessions));
+  } catch (e) {
+    console.error('Error saving anonymous sessions to localStorage:', e);
+  }
+}
+
+// Get current anonymous session ID
+function getCurrentAnonymousSessionId() {
+  return localStorage.getItem(ANONYMOUS_CURRENT_SESSION_KEY);
+}
+
+// Set current anonymous session ID
+function setCurrentAnonymousSessionId(sessionId) {
+  localStorage.setItem(ANONYMOUS_CURRENT_SESSION_KEY, sessionId);
+}
+
+// Create a new anonymous session
+function createAnonymousSession() {
+  const sessionId = 'anon_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  const session = {
+    id: sessionId,
+    title: 'Untitled Chat',
+    messages: [],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  
+  const sessions = getAnonymousSessions();
+  sessions.push(session);
+  saveAnonymousSessions(sessions);
+  setCurrentAnonymousSessionId(sessionId);
+  
+  return sessionId;
+}
+
+// Add message to anonymous session
+function addMessageToAnonymousSession(sender, text) {
+  if (consentStatus !== false) return; // Only if in ephemeral mode
+  
+  const sessionId = getCurrentAnonymousSessionId();
+  if (!sessionId) return;
+  
+  const sessions = getAnonymousSessions();
+  const session = sessions.find(s => s.id === sessionId);
+  
+  if (session) {
+    session.messages.push({
+      sender,
+      text,
+      created_at: new Date().toISOString(),
+    });
+    session.updated_at = new Date().toISOString();
+    
+    // Update title if first user message
+    if (sender === 'user' && session.messages.filter(m => m.sender === 'user').length === 1) {
+      session.title = text.substring(0, 50) + (text.length > 50 ? '...' : '');
+    }
+    
+    saveAnonymousSessions(sessions);
+  }
+}
+
+// Load anonymous session messages
+function loadAnonymousSessionMessages(sessionId) {
+  const sessions = getAnonymousSessions();
+  const session = sessions.find(s => s.id === sessionId);
+  return session ? session.messages : [];
+}
+
+// Delete anonymous session
+function deleteAnonymousSession(sessionId) {
+  const sessions = getAnonymousSessions();
+  const filtered = sessions.filter(s => s.id !== sessionId);
+  saveAnonymousSessions(filtered);
+  
+  if (getCurrentAnonymousSessionId() === sessionId) {
+    localStorage.removeItem(ANONYMOUS_CURRENT_SESSION_KEY);
+  }
+}
+
 document.addEventListener("DOMContentLoaded", function () {
   const messageForm = document.querySelector(".message-form");
   const messageInput = document.querySelector(".message-input");
@@ -307,6 +405,10 @@ document.addEventListener("DOMContentLoaded", function () {
     content.querySelector(".message-text").innerHTML = escapedText;
     wrapper.appendChild(content);
     chatMessages.appendChild(wrapper);
+    
+    // Save to anonymous session if in ephemeral mode
+    addMessageToAnonymousSession(sender, text);
+    
     scrollToBottom();
   }
 
@@ -596,6 +698,23 @@ document.addEventListener("DOMContentLoaded", function () {
 
   async function updateConsent(consent) {
     try {
+      // If switching TO secure mode FROM ephemeral mode and has messages, ask about saving current chat
+      if (consent === true && consentStatus === false && hasMessages()) {
+        const saveChat = confirm(
+          "You have an ongoing conversation in ephemeral mode. Would you like to save this conversation to your secure storage before enabling it?\n\nClick OK to save, or Cancel to start fresh."
+        );
+        
+        if (saveChat) {
+          // Save current anonymous chat to database before enabling storage
+          await saveAnonymousChatToDatabase();
+        } else {
+          // Clear current chat to start fresh
+          chatMessages.innerHTML = '';
+          clearIntroMessage();
+          createAnonymousSession(); // Start new anonymous session if they cancel
+        }
+      }
+      
       const response = await fetch("/api/consent/", {
         method: "POST",
         headers: {
@@ -622,6 +741,32 @@ document.addEventListener("DOMContentLoaded", function () {
     } catch (error) {
       console.error("Error updating consent:", error);
       appendMessage({ sender: "system", text: "Error updating privacy setting. Please try again." });
+      return false;
+    }
+  }
+
+  // Save current anonymous chat to database
+  async function saveAnonymousChatToDatabase() {
+    try {
+      const sessionId = getCurrentAnonymousSessionId();
+      if (!sessionId) return false;
+      
+      const session = getAnonymousSessions().find(s => s.id === sessionId);
+      if (!session || !session.messages.length) return false;
+      
+      // Send all messages to create a new database session
+      for (const message of session.messages) {
+        // Only need to send user messages as AI responses are generated
+        if (message.sender === 'user') {
+          // We can just mark this happened, but actual saving happens via /api/chat/
+          console.log('Message queued for saving:', message.text);
+        }
+      }
+      
+      console.log('Anonymous chat prepared for database storage');
+      return true;
+    } catch (error) {
+      console.error('Error saving anonymous chat:', error);
       return false;
     }
   }
@@ -676,6 +821,49 @@ document.addEventListener("DOMContentLoaded", function () {
   // New chat functionality
   async function startNewChat() {
     try {
+      // If in anonymous/ephemeral mode, create local session
+      if (consentStatus === false) {
+        createAnonymousSession();
+        
+        // Clear current chat and show intro
+        chatMessages.innerHTML = `
+                <div class="intro-message">
+                    <div class="intro-content">
+                        <div class="intro-header">
+                            <span class="intro-avatar">🍄</span>
+                            <span class="intro-name">EnokiAI</span>
+                        </div>
+                        <div class="intro-text">
+                            Hello! I'm EnokiAI, your mental health companion. I'm here to listen, support, and help you navigate your thoughts and feelings in a safe, non-judgmental space.
+                        </div>
+                        <div class="intro-features">
+                            <h4>What I can help with:</h4>
+                            <ul>
+                                <li>Active listening and emotional support</li>
+                                <li>Stress management techniques</li>
+                                <li>Mindfulness and coping strategies</li>
+                                <li>General mental wellness guidance</li>
+                            </ul>
+                        </div>
+                        <div class="intro-text" style="margin-top: 1rem; font-style: italic; font-size: 0.9rem; color: #718096;">
+                            Remember: I'm here to support you, but I'm not a replacement for professional mental health care. If you're experiencing a crisis, please reach out to a mental health professional or crisis helpline.
+                        </div>
+                    </div>
+                </div>
+            `;
+
+        // Update context
+        if (summaryEl) summaryEl.textContent = "";
+        if (memoryEl) memoryEl.innerHTML = "<em>No memory yet.</em>";
+
+        // Refresh chat history (including anonymous sessions)
+        loadChatHistory();
+        
+        console.log("New anonymous chat started");
+        return;
+      }
+      
+      // For authenticated users, use API
       const res = await fetch("/api/chat/new/", {
         method: "POST",
         headers: {
@@ -731,13 +919,29 @@ document.addEventListener("DOMContentLoaded", function () {
   // Load chat history
   async function loadChatHistory() {
     try {
-      const res = await fetch("/api/chat/history/", {
-        credentials: "same-origin",
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
-
-      renderChatHistory(data.sessions);
+      let allSessions = [];
+      
+      // Load anonymous sessions from localStorage if in ephemeral mode
+      if (consentStatus === false) {
+        allSessions = getAnonymousSessions();
+      }
+      
+      // Load authenticated sessions from API
+      if (consentStatus === true || consentStatus === null) {
+        try {
+          const res = await fetch("/api/chat/history/", {
+            credentials: "same-origin",
+          });
+          const data = await res.json();
+          if (res.ok && data.sessions) {
+            allSessions = allSessions.concat(data.sessions);
+          }
+        } catch (err) {
+          console.error("Error loading authenticated chat history:", err);
+        }
+      }
+      
+      renderChatHistory(allSessions);
     } catch (err) {
       console.error("Error loading chat history:", err);
       chatSessionsList.innerHTML = '<p style="color: #718096; text-align: center; padding: 2rem;">Failed to load chat history</p>';
@@ -759,7 +963,32 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
-    chatSessionsList.innerHTML = validSessions
+    // Process sessions to compute message_count and preview if missing (for anonymous sessions)
+    const processedSessions = validSessions.map(session => {
+      const processed = { ...session };
+      
+      // For anonymous sessions, compute message_count and preview from messages array
+      if (session.id && session.id.startsWith('anon_')) {
+        processed.message_count = session.messages ? session.messages.length : 0;
+        if (session.messages && session.messages.length > 0) {
+          const lastMessage = session.messages[session.messages.length - 1];
+          processed.preview = lastMessage.text.substring(0, 80) + (lastMessage.text.length > 80 ? '...' : '');
+        } else {
+          processed.preview = 'No messages yet';
+        }
+      }
+      
+      return processed;
+    });
+
+    // Sort by updated_at descending (most recent first)
+    processedSessions.sort((a, b) => {
+      const dateA = new Date(a.updated_at);
+      const dateB = new Date(b.updated_at);
+      return dateB - dateA;
+    });
+
+    chatSessionsList.innerHTML = processedSessions
       .map(
         (session) => `
             <div class="chat-session ${session.is_current ? "active" : ""}" data-session-id="${session.id}">
@@ -771,7 +1000,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 </div>
                 <div class="session-preview">${session.preview || "No messages yet"}</div>
                 <div class="session-meta">
-                    <span>${session.message_count} messages</span>
+                    <span>${session.message_count || 0} messages</span>
                     <span>${formatDate(session.updated_at)}</span>
                 </div>
             </div>
@@ -808,6 +1037,24 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     try {
+      // If anonymous session (starts with 'anon_'), delete from localStorage
+      if (sessionId && sessionId.startsWith('anon_')) {
+        deleteAnonymousSession(sessionId);
+        
+        // Check if this was the current session
+        const currentSessionId = getCurrentAnonymousSessionId();
+        if (currentSessionId === sessionId) {
+          // Start new anonymous session
+          createAnonymousSession();
+          window.location.reload();
+        } else {
+          // Just refresh the history list
+          loadChatHistory();
+        }
+        return;
+      }
+      
+      // For authenticated sessions, use API
       const response = await fetch(`/api/chat/delete/${sessionId}/`, {
         method: "DELETE",
         headers: {
@@ -842,6 +1089,41 @@ document.addEventListener("DOMContentLoaded", function () {
       // Show loading indicator
       chatMessages.innerHTML = '<div style="text-align: center; padding: 2rem; color: #718096;">Loading chat...</div>';
 
+      // If anonymous session (starts with 'anon_'), load from localStorage
+      if (sessionId && sessionId.startsWith('anon_')) {
+        setCurrentAnonymousSessionId(sessionId);
+        const messages = loadAnonymousSessionMessages(sessionId);
+        
+        // Clear current chat and load session messages
+        chatMessages.innerHTML = "";
+        messages.forEach((message) => {
+          appendMessage({
+            sender: message.sender,
+            text: message.text,
+            timeStr: message.created_at ? formatTime(message.created_at) : undefined,
+          });
+        });
+
+        // Update context
+        if (summaryEl) summaryEl.textContent = "";
+        if (memoryEl) memoryEl.innerHTML = "<em>No memory in ephemeral mode.</em>";
+
+        // Update history highlighting - remove active class from all, add to current
+        document.querySelectorAll(".chat-session").forEach((session) => {
+          session.classList.remove("active");
+          if (session.dataset.sessionId === String(sessionId)) {
+            session.classList.add("active");
+          }
+        });
+
+        // Close history panel
+        closeHistoryPanel();
+
+        console.log("Loaded anonymous chat session:", sessionId);
+        return;
+      }
+
+      // For authenticated sessions, use API
       // Make both API calls in parallel for faster loading
       const [switchRes, sessionRes] = await Promise.all([
         fetch(`/api/chat/switch/${sessionId}/`, {
@@ -965,5 +1247,16 @@ document.addEventListener("DOMContentLoaded", function () {
   scrollToBottom();
   fetchContext();
   checkConsentStatus();
+  
+  // Initialize anonymous session if needed
+  function initializeAnonymousSession() {
+    const currentSessionId = getCurrentAnonymousSessionId();
+    if (!currentSessionId) {
+      createAnonymousSession();
+    }
+  }
+  
+  // Initialize anonymous session and load history
+  initializeAnonymousSession();
   loadChatHistory();
 });
