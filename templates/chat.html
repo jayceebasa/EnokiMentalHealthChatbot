@@ -111,9 +111,9 @@
         </div>
       </div>
 
-      <!-- Ephemeral Mode Warning -->
-      <div class="ephemeral-warning" id="ephemeral-warning">
-        🔒 <strong>Ephemeral Mode:</strong> Your conversation will be lost when you close the browser.
+      <!-- Anonymous Mode Warning -->
+      <div class="anonymous-warning" id="anonymous-warning">
+        🔒 <strong>Anonymous Mode:</strong> Your conversation will be lost when you close the browser.
         <button
           id="enable-storage-btn"
           title="{% if not is_authenticated %}Login to enable data storage{% else %}Enable data storage for conversation continuity{% endif %}">
@@ -259,7 +259,7 @@
         </div>
 
         <div class="consent-option" data-consent="false" id="consent-disable">
-          <h4>👤 Ephemeral Mode</h4>
+          <h4>👤 Anonymous Mode</h4>
           <p>Keep conversations temporary in your browser only. Messages are lost when you close the browser, but no personal data is stored on our servers.</p>
         </div>
       </div>

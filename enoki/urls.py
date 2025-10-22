@@ -19,7 +19,7 @@ from django.urls import path, include
 from core.views import (
     home, chat, api_chat, api_chat_history, api_chat_context,
     api_new_chat, api_chat_sessions, api_chat_session_detail, api_switch_session, api_current_session,
-    api_consent, api_consent_status, api_clear_ephemeral_chat, api_delete_session
+    api_consent, api_consent_status, api_clear_anonymous_chat, api_delete_session
 )
 from core.auth_views import register_view, login_view, logout_view, anonymous_chat_view
 
@@ -42,5 +42,5 @@ urlpatterns = [
     path('api/chat/current/', api_current_session, name='api_current_session'),
     path('api/consent/', api_consent, name='api_consent'),
     path('api/consent/status/', api_consent_status, name='api_consent_status'),
-    path('api/chat/clear-ephemeral/', api_clear_ephemeral_chat, name='api_clear_ephemeral_chat'),
+    path('api/chat/clear-anonymous/', api_clear_anonymous_chat, name='api_clear_anonymous_chat'),
 ]

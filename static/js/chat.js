@@ -57,7 +57,7 @@ function createAnonymousSession() {
 
 // Add message to anonymous session
 function addMessageToAnonymousSession(sender, text) {
-  if (consentStatus !== false) return; // Only if in ephemeral mode
+  if (consentStatus !== false) return; // Only if in anonymous mode
   
   const sessionId = getCurrentAnonymousSessionId();
   if (!sessionId) return;
@@ -195,7 +195,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const confirmConsentBtn = document.getElementById("confirm-consent");
   const cancelConsentBtn = document.getElementById("cancel-consent");
   const consentStatusElement = document.getElementById("consent-status");
-  const ephemeralWarning = document.getElementById("ephemeral-warning");
+  const anonymousWarning = document.getElementById("anonymous-warning");
   const enableStorageBtn = document.getElementById("enable-storage-btn");
 
   // Validate required elements
@@ -355,7 +355,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // Enable storage button in ephemeral warning
+  // Enable storage button in anonymous warning
   if (enableStorageBtn) {
     enableStorageBtn.addEventListener("click", function () {
       // Check if user is authenticated
@@ -406,7 +406,7 @@ document.addEventListener("DOMContentLoaded", function () {
     wrapper.appendChild(content);
     chatMessages.appendChild(wrapper);
     
-    // Save to anonymous session if in ephemeral mode
+          // Save to anonymous session if in anonymous mode
     addMessageToAnonymousSession(sender, text);
     
     scrollToBottom();
@@ -480,20 +480,20 @@ document.addEventListener("DOMContentLoaded", function () {
       if (summaryEl) summaryEl.textContent = data.summary || "";
       if (memoryEl) memoryEl.innerHTML = renderMemory(data.memory);
 
-      // Load ephemeral chat history if available (no consent mode)
-      if (data.ephemeral_history && Array.isArray(data.ephemeral_history) && data.ephemeral_history.length > 0) {
-        console.log("Loading ephemeral chat history:", data.ephemeral_history.length, "messages");
+      // Load anonymous chat history if available (no consent mode)
+      if (data.anonymous_history && Array.isArray(data.anonymous_history) && data.anonymous_history.length > 0) {
+        console.log("Loading anonymous chat history:", data.anonymous_history.length, "messages");
 
         // Clear any existing intro message
         clearIntroMessage();
 
-        // Render ephemeral chat history
-        data.ephemeral_history.forEach((msg) => {
+        // Render anonymous chat history
+        data.anonymous_history.forEach((msg) => {
           appendMessage({
             sender: msg.role === "user" ? "user" : "bot",
             text: msg.text,
             emotions: null,
-            timeStr: null, // No timestamps for ephemeral messages
+            timeStr: null, // No timestamps for anonymous messages
           });
         });
       }
@@ -642,8 +642,8 @@ document.addEventListener("DOMContentLoaded", function () {
         consentStatusElement.innerHTML = '<span class="consent-indicator secure">🛡️ Secure</span>';
         consentStatusElement.title = "Data stored securely with encryption";
       } else if (consentStatus === false) {
-        consentStatusElement.innerHTML = '<span class="consent-indicator ephemeral">👤 Private</span>';
-        consentStatusElement.title = "Ephemeral mode - no data stored";
+        consentStatusElement.innerHTML = '<span class="consent-indicator anonymous">👤 Private</span>';
+        consentStatusElement.title = "Anonymous mode - no data stored";
       } else {
         consentStatusElement.innerHTML = '<span class="consent-indicator unknown">⚙️ Set Privacy</span>';
         consentStatusElement.title = "Click to set your privacy preference";
@@ -662,9 +662,9 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
 
-    // Update ephemeral warning visibility
-    if (ephemeralWarning) {
-      ephemeralWarning.style.display = consentStatus === false ? "flex" : "none";
+    // Update anonymous warning visibility
+    if (anonymousWarning) {
+      anonymousWarning.style.display = consentStatus === false ? "flex" : "none";
     }
   }
 
@@ -698,10 +698,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
   async function updateConsent(consent) {
     try {
-      // If switching TO secure mode FROM ephemeral mode and has messages, ask about saving current chat
+      // If switching TO secure mode FROM anonymous mode and has messages, ask about saving current chat
       if (consent === true && consentStatus === false && hasMessages()) {
         const saveChat = confirm(
-          "You have an ongoing conversation in ephemeral mode. Would you like to save this conversation to your secure storage before enabling it?\n\nClick OK to save, or Cancel to start fresh."
+          "You have an ongoing conversation in anonymous mode. Would you like to save this conversation to your secure storage before enabling it?\n\nClick OK to save, or Cancel to start fresh."
         );
         
         if (saveChat) {
@@ -731,7 +731,7 @@ document.addEventListener("DOMContentLoaded", function () {
         hideConsentModal();
 
         // Show feedback message
-        const feedback = consent ? "Privacy setting updated: Secure storage enabled" : "Privacy setting updated: Ephemeral mode enabled";
+        const feedback = consent ? "Privacy setting updated: Secure storage enabled" : "Privacy setting updated: Anonymous mode enabled";
         appendMessage({ sender: "system", text: feedback });
 
         return true;
@@ -821,7 +821,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // New chat functionality
   async function startNewChat() {
     try {
-      // If in anonymous/ephemeral mode, create local session
+      // If in anonymous/anonymous mode, create local session
       if (consentStatus === false) {
         createAnonymousSession();
         
@@ -921,7 +921,7 @@ document.addEventListener("DOMContentLoaded", function () {
     try {
       let allSessions = [];
       
-      // Load anonymous sessions from localStorage if in ephemeral mode
+      // Load anonymous sessions from localStorage if in anonymous mode
       if (consentStatus === false) {
         allSessions = getAnonymousSessions();
       }
@@ -1106,7 +1106,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         // Update context
         if (summaryEl) summaryEl.textContent = "";
-        if (memoryEl) memoryEl.innerHTML = "<em>No memory in ephemeral mode.</em>";
+        if (memoryEl) memoryEl.innerHTML = "<em>No memory in anonymous mode.</em>";
 
         // Update history highlighting - remove active class from all, add to current
         document.querySelectorAll(".chat-session").forEach((session) => {
@@ -1246,7 +1246,10 @@ document.addEventListener("DOMContentLoaded", function () {
   // Initial behaviors
   scrollToBottom();
   fetchContext();
-  checkConsentStatus();
+  // Check consent status first, then load chat history after it's determined
+  checkConsentStatus().then(() => {
+    loadChatHistory();
+  });
   
   // Initialize anonymous session if needed
   function initializeAnonymousSession() {
@@ -1256,7 +1259,6 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
   
-  // Initialize anonymous session and load history
+  // Initialize anonymous session and load history only after consent is checked
   initializeAnonymousSession();
-  loadChatHistory();
 });

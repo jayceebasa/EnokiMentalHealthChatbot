@@ -151,5 +151,5 @@ def anonymous_chat_view(request):
     
     # Set anonymous flag in session
     request.session['is_anonymous'] = True
-    # Note: The chat page has its own ephemeral warning banner
+    # Note: The chat page has its own anonymous warning banner
     return redirect('chat')

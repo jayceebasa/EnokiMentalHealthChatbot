@@ -137,7 +137,7 @@ def api_chat(request):
             request.session['temp_chat_history'] = session_history
 
             audit_logger.info(
-                f"Ephemeral chat - no consent: message_length={len(user_message)}")
+                f"Anonymous chat - no consent: message_length={len(user_message)}")
 
             return JsonResponse({
                 'user_message': user_message,
@@ -160,7 +160,7 @@ def api_chat(request):
         # Check if we need to migrate session history to database
         session_history = request.session.get('temp_chat_history', [])
         if session_history:
-            # Migrate previous ephemeral conversation to database
+            # Migrate previous anonymous conversation to database
             with transaction.atomic():
                 for msg in session_history:
                     m = Message(session=session,
@@ -170,7 +170,7 @@ def api_chat(request):
                 # Clear session history after migration
                 del request.session['temp_chat_history']
                 audit_logger.info(
-                    f"Migrated ephemeral history to database: session_id={session.id}, messages={len(session_history)}")
+                    f"Migrated anonymous history to database: session_id={session.id}, messages={len(session_history)}")
 
         # Build prior history for continuity (last 12 messages from THIS SESSION ONLY)
         # Double-check session ownership for security
@@ -305,20 +305,20 @@ def api_chat_history(request):
 @csrf_exempt
 @require_http_methods(["GET"])
 def api_chat_context(request):
-    """Return context and chat history - works for both consent/ephemeral modes."""
+    """Return context and chat history - works for both consent/anonymous modes."""
     try:
         prefs = _get_or_create_preferences(request)
         
         # Check consent status to determine what to return
         if not _check_consent(prefs):
-            # NO CONSENT: Return ephemeral session history
+            # NO CONSENT: Return anonymous session history
             session_history = request.session.get('temp_chat_history', [])
             return JsonResponse({
                 'session_id': None,
                 'summary': None,
                 'memory': None,
                 'preferences': {'tone': prefs.tone, 'language': prefs.language},
-                'ephemeral_history': session_history,  # Return ephemeral chat history
+                'anonymous_history': session_history,  # Return anonymous chat history
                 'consent_required': True,
             })
         
@@ -339,16 +339,16 @@ def api_chat_context(request):
 
 @csrf_exempt  
 @require_http_methods(["POST"])
-def api_clear_ephemeral_chat(request):
-    """Clear ephemeral chat history stored in session."""
+def api_clear_anonymous_chat(request):
+    """Clear anonymous chat history stored in session."""
     try:
         if 'temp_chat_history' in request.session:
             del request.session['temp_chat_history']
-            audit_logger.info("Ephemeral chat history cleared")
+            audit_logger.info("Anonymous chat history cleared")
         
         return JsonResponse({
             'success': True,
-            'message': 'Ephemeral chat history cleared'
+            'message': 'Anonymous chat history cleared'
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
@@ -542,17 +542,17 @@ def api_new_chat(request):
     try:
         prefs = _get_or_create_preferences(request)
 
-        # Check consent status to handle ephemeral vs persistent sessions
+        # Check consent status to handle anonymous vs persistent sessions
         if not _check_consent(prefs):
-            # NO CONSENT: Clear ephemeral history for new chat
+            # NO CONSENT: Clear anonymous history for new chat
             if 'temp_chat_history' in request.session:
                 del request.session['temp_chat_history']
-                audit_logger.info("Ephemeral chat history cleared for new chat")
+                audit_logger.info("Anonymous chat history cleared for new chat")
             
             return JsonResponse({
                 'session_id': None,
-                'message': 'New ephemeral chat started - previous conversation cleared',
-                'ephemeral_mode': True
+                'message': 'New anonymous chat started - previous conversation cleared',
+                'anonymous_mode': True
             })
         
         # CONSENT GIVEN: Create new database session
@@ -568,7 +568,7 @@ def api_new_chat(request):
         return JsonResponse({
             'session_id': new_session.id,
             'message': 'New chat session created successfully',
-            'ephemeral_mode': False
+            'anonymous_mode': False
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
@@ -753,18 +753,18 @@ def api_consent(request):
         audit_logger.info(
             f"Consent managed: user_id={getattr(request.user, 'id', 'anon')}, old_consent={old_consent}, new_consent={consent_given}")
 
-        # If consent was revoked, optionally clear ephemeral session data
+        # If consent was revoked, optionally clear anonymous session data
         if old_consent and not consent_given:
             if 'temp_chat_history' in request.session:
                 del request.session['temp_chat_history']
             audit_logger.info(
-                f"Consent revoked - cleared ephemeral session data")
+                f"Consent revoked - cleared anonymous session data")
 
         return JsonResponse({
             'message': 'Consent updated successfully',
             'consent_status': prefs.data_consent,
             'consent_timestamp': prefs.consent_timestamp.isoformat() if prefs.consent_timestamp else None,
-            'has_ephemeral_data': 'temp_chat_history' in request.session
+            'has_anonymous_data': 'temp_chat_history' in request.session
         })
 
     except Exception as e:
@@ -783,8 +783,8 @@ def api_consent_status(request):
             'consent_status': getattr(prefs, 'data_consent', False),
             'consent_timestamp': prefs.consent_timestamp.isoformat() if getattr(prefs, 'consent_timestamp', None) else None,
             'consent_version': getattr(prefs, 'consent_version', '1.0'),
-            'has_ephemeral_data': 'temp_chat_history' in request.session,
-            'ephemeral_message_count': len(request.session.get('temp_chat_history', []))
+            'has_anonymous_data': 'temp_chat_history' in request.session,
+            'anonymous_message_count': len(request.session.get('temp_chat_history', []))
         })
 
     except Exception as e:
