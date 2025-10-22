@@ -1088,12 +1088,24 @@ document.addEventListener("DOMContentLoaded", function () {
   function showMigrationModal(onSave, onCancel) {
     const overlay = document.getElementById("migration-overlay");
     const modal = document.getElementById("migration-modal");
+    const modalMessage = document.getElementById("migration-modal-message");
+    const modalSubmessage = document.getElementById("migration-modal-submessage");
     const cancelBtn = document.getElementById("migration-cancel");
     const proceedBtn = document.getElementById("migration-proceed");
 
     if (!overlay || !modal) {
       console.error("Migration modal elements not found!");
       return;
+    }
+
+    // Update message based on authentication status
+    const isAuthenticated = window.isAuthenticated === true || window.isAuthenticated === 'True';
+    if (!isAuthenticated) {
+      modalMessage.textContent = "Save your conversation? You'll be redirected to log in, and your messages will be securely saved to your account.";
+      modalSubmessage.textContent = "After logging in, you'll see all your saved conversations in secure storage.";
+    } else {
+      modalMessage.textContent = "You have an ongoing conversation in anonymous mode. Would you like to save this conversation to your secure storage before enabling it?";
+      modalSubmessage.textContent = "Your messages will be saved securely and you can continue our conversation anytime.";
     }
 
     overlay.style.display = "block";
@@ -1135,7 +1147,26 @@ document.addEventListener("DOMContentLoaded", function () {
               console.log("User chose to SAVE anonymous chats");
               
               try {
-                // Step 1: Update consent in backend first (so /api/chat/new/ will work)
+                // Check if user is authenticated
+                const isAuthenticated = window.isAuthenticated === true || window.isAuthenticated === 'True';
+                console.log("Is user authenticated?", isAuthenticated);
+                
+                if (!isAuthenticated) {
+                  // User is not logged in - save as anonymous first, they'll log in after
+                  console.log("User not logged in - saving as anonymous chats...");
+                  const saveResult = await saveAnonymousChatToDatabase();
+                  console.log("Anonymous save result:", saveResult);
+                  
+                  // Redirect to login page
+                  showNotification("Almost There!", "Please log in to securely save your conversations.", "info");
+                  setTimeout(() => {
+                    window.location.href = '/login/';
+                  }, 2000);
+                  resolve(true);
+                  return;
+                }
+                
+                // User IS logged in - proceed with normal secure migration
                 console.log("Step 1: Setting consent to true in backend...");
                 const consentRes = await fetch("/api/consent/", {
                   method: "POST",

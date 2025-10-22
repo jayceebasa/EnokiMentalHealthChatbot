@@ -5,7 +5,7 @@ from django.contrib import messages
 from django import forms
 from django.contrib.auth.models import User
 from django.contrib.messages import constants as messages_constants
-from .models import UserPreference
+from .models import UserPreference, ChatSession
 
 
 def _transfer_anonymous_consent(request, user):
@@ -37,8 +37,26 @@ def _transfer_anonymous_consent(request, user):
             
             # Optionally delete the anonymous preferences
             # anon_prefs.delete()
+        
+        # Transfer anonymous chat sessions to the authenticated user
+        _transfer_anonymous_chat_sessions(anon_id, user)
     except Exception as e:
         # Log error but don't break the login flow
+        pass
+
+
+def _transfer_anonymous_chat_sessions(anon_id, user):
+    """Transfer all anonymous chat sessions to the authenticated user"""
+    try:
+        # Find all chat sessions with this anon_id
+        anonymous_sessions = ChatSession.objects.filter(anon_id=anon_id, user=None)
+        
+        if anonymous_sessions.exists():
+            # Transfer all anonymous sessions to the user
+            anonymous_sessions.update(user=user, anon_id=None)
+            print(f"Transferred {anonymous_sessions.count()} anonymous chat sessions to user {user.id}")
+    except Exception as e:
+        print(f"Error transferring chat sessions: {e}")
         pass
 
 
