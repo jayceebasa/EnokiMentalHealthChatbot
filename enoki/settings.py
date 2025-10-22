@@ -249,7 +249,6 @@ SOCIAL_AUTH_PIPELINE = (
     'social_core.pipeline.social_auth.auth_allowed',
     # SECURITY: Check if email belongs to password account before linking
     'core.oauth_pipeline.prevent_account_linking',
-    'core.oauth_pipeline.prevent_new_user_from_oauth_duplicate_email',
     'social_core.pipeline.social_auth.social_user',
     'social_core.pipeline.user.get_username',
     'social_core.pipeline.user.create_user',
