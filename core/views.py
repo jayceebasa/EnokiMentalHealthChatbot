@@ -643,13 +643,10 @@ def api_new_chat(request):
     """Create a new chat session, preserving the current one in history."""
     try:
         prefs = _get_or_create_preferences(request)
-        
-        # Check if this is a save migration request (unauthenticated user saving before login)
-        is_save_migration = request.GET.get('save_migration') == 'true'
 
         # Check consent status to handle anonymous vs persistent sessions
-        if not _check_consent(prefs) and not is_save_migration:
-            # NO CONSENT and not a save migration: Clear anonymous history for new chat
+        if not _check_consent(prefs):
+            # NO CONSENT: Clear anonymous history for new chat
             if 'temp_chat_history' in request.session:
                 del request.session['temp_chat_history']
                 audit_logger.info("Anonymous chat history cleared for new chat")
@@ -665,7 +662,7 @@ def api_new_chat(request):
                 'anonymous_mode': True
             })
         
-        # CONSENT GIVEN OR SAVE MIGRATION: Create new database session
+        # CONSENT GIVEN: Create new database session
         if request.user.is_authenticated:
             new_session = ChatSession.objects.create(user=request.user)
             # Invalidate chat sessions cache
@@ -775,41 +772,6 @@ def api_save_messages(request):
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
         logging.error(f"Error saving messages: {e}", exc_info=True)
-        return JsonResponse({'error': str(e)}, status=500)
-
-
-@csrf_exempt
-@require_http_methods(["POST"])
-def api_mark_anon_for_migration(request):
-    """Mark the current anonymous session for migration after login.
-    This endpoint should be called before redirecting to login, so we can
-    store the anon_id in a secure way that persists across login.
-    """
-    try:
-        logging.info("api_mark_anon_for_migration called")
-        
-        if request.user.is_authenticated:
-            # User is already authenticated, no need to mark for migration
-            return JsonResponse({'error': 'User already authenticated'}, status=400)
-        
-        # Get the current anon_id
-        anon_id = _get_or_create_anon_id(request)
-        logging.info(f"Marking anon_id for migration: {anon_id}")
-        
-        # Store the anon_id in the session with a flag
-        request.session['pending_anon_migration'] = {
-            'anon_id': anon_id,
-            'timestamp': timezone.now().isoformat()
-        }
-        request.session.save()  # Explicitly save session
-        
-        return JsonResponse({
-            'success': True,
-            'message': 'Anonymous session marked for migration',
-            'anon_id': anon_id
-        })
-    except Exception as e:
-        logging.error(f"Error marking anon for migration: {e}", exc_info=True)
         return JsonResponse({'error': str(e)}, status=500)
 
 

@@ -1152,41 +1152,10 @@ document.addEventListener("DOMContentLoaded", function () {
                 console.log("Is user authenticated?", isAuthenticated);
                 
                 if (!isAuthenticated) {
-                  // User is not logged in - save as anonymous first, they'll log in after
-                  console.log("User not logged in - saving as anonymous chats...");
-                  
-                  // First, mark this anonymous session for migration
-                  console.log("Marking anonymous session for migration...");
-                  try {
-                    const markRes = await fetch("/api/chat/mark-anon-migration/", {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        "X-CSRFToken": getCSRFToken(),
-                      },
-                      credentials: "same-origin",
-                    });
-                    if (markRes.ok) {
-                      const markData = await markRes.json();
-                      console.log("Anonymous session marked for migration:", markData.anon_id);
-                    }
-                  } catch (e) {
-                    console.error("Error marking anonymous session:", e);
-                  }
-                  
-                  // NOTE: We do NOT update consent status here for unauthenticated users
-                  // Backend prevents unauthenticated users from setting consent=true
-                  // Instead, we just save the messages with anon_id, and on login,
-                  // _transfer_anonymous_consent() will set data_consent=true
-                  
-                  const saveResult = await saveAnonymousChatToDatabase();
-                  console.log("Anonymous save result:", saveResult);
-                  
-                  // Redirect to login page
-                  showNotification("Almost There!", "Please log in to securely save your conversations.", "info");
-                  setTimeout(() => {
-                    window.location.href = '/login/?anon_migration=true';
-                  }, 2000);
+                  // Unauthenticated users cannot save messages
+                  // Messages will be lost when they close the browser
+                  console.log("User not logged in - cannot save messages permanently");
+                  showNotification("Log In to Save", "Please create an account or log in to save your conversations.", "info");
                   resolve(true);
                   return;
                 }
@@ -1330,9 +1299,8 @@ document.addEventListener("DOMContentLoaded", function () {
       // Save each anonymous session as a separate chat session in the database
       for (const session of sessionsToSave) {
         try {
-          // Create a new chat session on the backend with save_migration flag
-          // This allows unauthenticated users to create sessions for saving
-          const newChatRes = await fetch("/api/chat/new/?save_migration=true", {
+          // Create a new chat session on the backend
+          const newChatRes = await fetch("/api/chat/new/", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

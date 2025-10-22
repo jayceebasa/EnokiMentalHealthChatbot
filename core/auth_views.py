@@ -5,7 +5,6 @@ from django.contrib import messages
 from django import forms
 from django.contrib.auth.models import User
 from django.contrib.messages import constants as messages_constants
-from django.utils import timezone
 from .models import UserPreference, ChatSession
 
 
@@ -56,15 +55,14 @@ def _transfer_anonymous_consent(request, user, anon_id=None):
             user_prefs.tone = anon_prefs.tone
             user_prefs.language = anon_prefs.language
             
-            # IMPORTANT: When transferring anonymous chat sessions to an authenticated user,
-            # the user has explicitly chosen to save their conversations, so we set consent=true
-            # This ensures their transferred chats are in secure storage mode
-            user_prefs.data_consent = True
-            user_prefs.consent_timestamp = timezone.now()
-            user_prefs.consent_version = getattr(anon_prefs, 'consent_version', '1.0')
+            # Transfer consent if it was set (True or False, but not default)
+            if anon_prefs.data_consent or anon_prefs.consent_timestamp:
+                user_prefs.data_consent = anon_prefs.data_consent
+                user_prefs.consent_timestamp = anon_prefs.consent_timestamp
+                user_prefs.consent_version = anon_prefs.consent_version
             
             user_prefs.save()
-            print(f"User preferences transferred with data_consent=True")
+            print(f"User preferences transferred")
         else:
             print(f"No anonymous preferences found for anon_id: {anon_id}")
         
