@@ -470,21 +470,32 @@ def chat(request):
 
     # Allow updating preferences (tone / language) via form
     if request.method == "POST" and request.POST.get("update_prefs"):
-        prefs.tone = request.POST.get("tone", prefs.tone)[:32]
-        prefs.language = request.POST.get("language", prefs.language)[:8]
-        prefs.save()
-        
-        # Clear cache to ensure fresh preferences are loaded
-        if request.user.is_authenticated:
-            cache_key = f"user_prefs_{request.user.id}"
-            cache.delete(cache_key)
-        else:
-            anon_id = request.session.get('anon_id')
-            if anon_id:
-                cache_key = f"anon_prefs_{anon_id}"
+        try:
+            prefs.tone = request.POST.get("tone", prefs.tone)[:32]
+            prefs.language = request.POST.get("language", prefs.language)[:8]
+            prefs.save()
+            
+            # Clear cache to ensure fresh preferences are loaded
+            if request.user.is_authenticated:
+                cache_key = f"user_prefs_{request.user.id}"
                 cache.delete(cache_key)
-        
-        return redirect("chat")
+            else:
+                anon_id = request.session.get('anon_id')
+                if anon_id:
+                    cache_key = f"anon_prefs_{anon_id}"
+                    cache.delete(cache_key)
+            
+            # Check if this is an AJAX request
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': True, 'message': 'Preferences updated'})
+            else:
+                return redirect("chat")
+        except Exception as e:
+            audit_logger.error(f"Error updating preferences: {str(e)}")
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'error': 'Failed to update preferences'}, status=500)
+            else:
+                return redirect("chat")
 
     reply, emotions = None, []
     user_message = ""

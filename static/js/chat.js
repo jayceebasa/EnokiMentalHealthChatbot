@@ -471,14 +471,65 @@ document.addEventListener("DOMContentLoaded", function () {
   if (closeSettings) closeSettings.addEventListener("click", closeSettingsPanel);
   if (settingsOverlay) settingsOverlay.addEventListener("click", closeSettingsPanel);
 
-  // Preferences form submission handler
+  // Preferences form auto-save handler with AJAX
   const preferencesForm = document.querySelector(".preferences-form");
-  if (preferencesForm) {
-    preferencesForm.addEventListener("submit", function (e) {
-      // Allow normal form submission to the server
-      // No need to prevent default - let Django handle it
-      showNotification("✓ Preferences Saved", "Your settings have been updated successfully.", "success", 3000);
-      // The form will submit naturally and refresh the page
+
+  if (toneSelect) {
+    // Auto-save when tone changes using AJAX
+    toneSelect.addEventListener("change", function () {
+      if (!preferencesForm) return;
+
+      // Prepare form data using URLSearchParams for form encoding
+      const params = new URLSearchParams();
+      params.append("update_prefs", "1");
+      params.append("tone", toneSelect.value);
+      params.append("language", document.getElementById("language")?.value || "");
+      
+      // Get CSRF token
+      const csrfToken = document.querySelector("[name=csrfmiddlewaretoken]")?.value || "";
+      if (csrfToken) {
+        params.append("csrfmiddlewaretoken", csrfToken);
+      }
+
+      // Send AJAX request to /chat/ endpoint (POST to /chat/)
+      fetch("/chat/", {
+        method: "POST",
+        body: params,
+        headers: {
+          "X-CSRFToken": csrfToken,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        credentials: "same-origin",
+      })
+        .then((response) => {
+          if (response.ok) {
+            // Show success notification without page refresh
+            showNotification(
+              "✓ Tone Updated",
+              "Your conversation tone preference has been saved.",
+              "success",
+              3000
+            );
+            console.log("Preferences saved successfully");
+          } else {
+            console.error("Response status:", response.status);
+            showNotification(
+              "Error",
+              "Failed to save preferences. Please try again.",
+              "error",
+              3000
+            );
+          }
+        })
+        .catch((err) => {
+          console.error("Error saving preferences:", err);
+          showNotification(
+            "Error",
+            "Failed to save preferences. Please try again.",
+            "error",
+            3000
+          );
+        });
     });
   }
 
