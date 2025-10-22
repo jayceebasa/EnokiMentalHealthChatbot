@@ -275,6 +275,19 @@ def api_chat_history(request):
         limit = int(request.GET.get("limit", 50))
         limit = max(1, min(limit, 200))  # clamp
         prefs = _get_or_create_preferences(request)
+        
+        # In anonymous mode (no consent), don't access database - return empty
+        if not _check_consent(prefs):
+            return JsonResponse({
+                'session_id': None,
+                'preferences': {'tone': prefs.tone, 'language': prefs.language},
+                'messages': [],  # No database messages in anonymous mode
+                'summary': None,
+                'memory': None,
+                'anonymous_mode': True,
+            })
+        
+        # Only access database for authenticated users with consent
         session = _get_or_create_session(request)
         
         # Validate session ownership for security
@@ -463,10 +476,15 @@ def _get_or_create_session(request):
 
 def chat(request):
     prefs = _get_or_create_preferences(request)
-    session = _get_or_create_session(request)
     
-    # Validate session ownership for security
-    _validate_session_ownership(session, request)
+    # Only create a database session if the user has given consent
+    # In anonymous mode (no consent), we use temp_chat_history only
+    if _check_consent(prefs):
+        session = _get_or_create_session(request)
+        # Validate session ownership for security
+        _validate_session_ownership(session, request)
+    else:
+        session = None  # No database session in anonymous mode
 
     # Allow updating preferences (tone / language) via form
     if request.method == "POST" and request.POST.get("update_prefs"):
@@ -505,76 +523,104 @@ def chat(request):
 
         # Step 1: classify emotions with RoBERTa
         payload = {"text": user_message}
-        response = httpx.post(f"{AI_SERVICE_URL}/predict_all", json=payload)
+        response = httpx.post(f"{AI_SERVICE_URL}/predict_all", json=payload, timeout=60)
         roberta_data = response.json()
         emotions = roberta_data.get("emotions", [])
 
         preferences = {"tone": prefs.tone, "language": prefs.language}
 
-        # Prepare lightweight history (exclude current). Use last 12 stored messages from THIS SESSION ONLY
-        # Ensure session ownership for security
-        if request.user.is_authenticated:
-            prior = list(session.messages.filter(
-                session__user=request.user
-            ).order_by('-created_at')[:12])
-        else:
-            anon_id = _get_or_create_anon_id(request)
-            prior = list(session.messages.filter(
-                session__anon_id=anon_id
-            ).order_by('-created_at')[:12])
+        # ANONYMOUS MODE: Use temp_chat_history only
+        if not _check_consent(prefs):
+            session_history = request.session.get('temp_chat_history', [])
+            
+            # Add current message to session
+            session_history.append({"role": "user", "text": user_message})
+            
+            # Keep only last 10 messages in session to prevent bloat
+            if len(session_history) > 10:
+                session_history = session_history[-10:]
+            
+            # Generate reply with session-only context
+            reply = generate_reply(
+                user_message,
+                emotions,
+                preferences,
+                history=session_history,
+                summary=None,
+                memory=None,
+            )
+            
+            # Add bot reply to session
+            session_history.append({"role": "bot", "text": reply})
+            request.session['temp_chat_history'] = session_history
         
-        prior_serialized = [
-            {"role": m.sender if m.sender in (
-                "user", "bot") else "bot", "text": getattr(m, 'plaintext', m.text)}
-            for m in reversed(prior)
-        ]
+        # AUTHENTICATED MODE: Use database session
+        else:
+            # Prepare lightweight history (exclude current). Use last 12 stored messages from THIS SESSION ONLY
+            # Ensure session ownership for security
+            if request.user.is_authenticated:
+                prior = list(session.messages.filter(
+                    session__user=request.user
+                ).order_by('-created_at')[:12])
+            else:
+                anon_id = _get_or_create_anon_id(request)
+                prior = list(session.messages.filter(
+                    session__anon_id=anon_id
+                ).order_by('-created_at')[:12])
+            
+            prior_serialized = [
+                {"role": m.sender if m.sender in (
+                    "user", "bot") else "bot", "text": getattr(m, 'plaintext', m.text)}
+                for m in reversed(prior)
+            ]
 
-        # Step 3: generate a reply with Gemini using history + summary - ONLY from current session
-        reply = generate_reply(
-            user_message,
-            emotions,
-            preferences,
-            history=prior_serialized,  # Guaranteed to be from current session only
-            summary=session.summary,   # Session-specific summary
-            memory=session.memory,
-        )
+            # Step 3: generate a reply with Gemini using history + summary - ONLY from current session
+            reply = generate_reply(
+                user_message,
+                emotions,
+                preferences,
+                history=prior_serialized,  # Guaranteed to be from current session only
+                summary=session.summary,   # Session-specific summary
+                memory=session.memory,
+            )
 
-        # Persist messages atomically
-        with transaction.atomic():
-            m_user = Message(session=session, sender="user",
-                             text=user_message, emotions=emotions)
-            m_user.set_plaintext(user_message)
-            m_user.save()
-            m_bot = Message(session=session, sender="bot",
-                            text=reply, emotions=None)
-            m_bot.set_plaintext(reply)
-            m_bot.save()
-            # Use count in memory instead of database query for efficiency
-            user_msg_count = len([m for m in session.messages.all() if m.sender == "user"])
-            if user_msg_count <= 6 or user_msg_count % 3 == 0:
-                session.summary = update_summary(
-                    session.summary,
+            # Persist messages atomically
+            with transaction.atomic():
+                m_user = Message(session=session, sender="user",
+                                 text=user_message, emotions=emotions)
+                m_user.set_plaintext(user_message)
+                m_user.save()
+                m_bot = Message(session=session, sender="bot",
+                                text=reply, emotions=None)
+                m_bot.set_plaintext(reply)
+                m_bot.save()
+                # Use count in memory instead of database query for efficiency
+                user_msg_count = len([m for m in session.messages.all() if m.sender == "user"])
+                if user_msg_count <= 6 or user_msg_count % 3 == 0:
+                    session.summary = update_summary(
+                        session.summary,
+                        prior_serialized +
+                        [{"role": "user", "text": user_message},
+                            {"role": "bot", "text": reply}],
+                        user_message,
+                        reply,
+                    )
+                session.memory = update_memory(
+                    session.memory,
                     prior_serialized +
                     [{"role": "user", "text": user_message},
                         {"role": "bot", "text": reply}],
                     user_message,
                     reply,
                 )
-            session.memory = update_memory(
-                session.memory,
-                prior_serialized +
-                [{"role": "user", "text": user_message},
-                    {"role": "bot", "text": reply}],
-                user_message,
-                reply,
-            )
-            session.save(update_fields=["summary", "memory"])
+                session.save(update_fields=["summary", "memory"])
 
-    recent_messages = session.messages.all().select_related("session")[:50]
-    
-    # In anonymous mode (no consent), don't show database messages server-side
-    # Messages are stored in browser session instead and managed client-side
-    if not _check_consent(prefs):
+    # Get recent messages to display in template
+    if _check_consent(prefs) and session:
+        recent_messages = session.messages.all().select_related("session")[:50]
+    else:
+        # In anonymous mode, don't show database messages server-side
+        # Messages are stored in browser session instead and managed client-side
         recent_messages = []
 
     return render(request, "chat.html", {
@@ -585,9 +631,9 @@ def chat(request):
         "preferences": prefs,
         "session": session,
         "is_authenticated": request.user.is_authenticated,
-                "tones": ["empathetic", "supportive", "professional", "gentle", "casual", "batman"],
-        "summary": session.summary,
-        "memory": session.memory,
+        "tones": ["empathetic", "supportive", "professional", "gentle", "casual", "batman"],
+        "summary": session.summary if session else None,
+        "memory": session.memory if session else None,
     })
 
 
@@ -644,15 +690,19 @@ def api_new_chat(request):
 def api_chat_sessions(request):
     """Get all chat sessions for the current user/anonymous user - with caching"""
     try:
-        # Try cache first for performance
-        if request.user.is_authenticated:
-            cache_key = f"chat_sessions_{request.user.id}"
-        else:
-            cache_key = f"chat_sessions_anon_{_get_or_create_anon_id(request)}"
+        # Check if cache should be bypassed (on page load)
+        force_refresh = request.GET.get('force_refresh', False)
         
-        cached_sessions = cache.get(cache_key)
-        if cached_sessions:
-            return JsonResponse(cached_sessions)
+        # Try cache first for performance (unless force_refresh is set)
+        if not force_refresh:
+            if request.user.is_authenticated:
+                cache_key = f"chat_sessions_{request.user.id}"
+            else:
+                cache_key = f"chat_sessions_anon_{_get_or_create_anon_id(request)}"
+            
+            cached_sessions = cache.get(cache_key)
+            if cached_sessions:
+                return JsonResponse(cached_sessions)
         
         # Use prefetch_related to batch fetch all messages in one query
         messages_prefetch = Prefetch('messages')
@@ -722,8 +772,14 @@ def api_chat_sessions(request):
             'current_session_id': current_session_id
         }
         
-        # Cache for 10 seconds to handle rapid page opens but stay fresh for new messages
-        cache.set(cache_key, response_data, timeout=10)
+        # Store cache key for later use
+        if request.user.is_authenticated:
+            cache_key = f"chat_sessions_{request.user.id}"
+        else:
+            cache_key = f"chat_sessions_anon_{_get_or_create_anon_id(request)}"
+        
+        # Cache for only 2 seconds for fresher data on page reloads
+        cache.set(cache_key, response_data, timeout=2)
         
         return JsonResponse(response_data)
     except Exception as e:

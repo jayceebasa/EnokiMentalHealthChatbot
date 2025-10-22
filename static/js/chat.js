@@ -449,7 +449,7 @@ document.addEventListener("DOMContentLoaded", function () {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRFToken": getCsrfToken(),
+          "X-CSRFToken": getCSRFToken(),
         },
       });
 
@@ -1273,10 +1273,10 @@ document.addEventListener("DOMContentLoaded", function () {
         console.log("Loading anonymous sessions from sessionStorage");
         allSessions = getAnonymousSessions();
       } else if (consentStatus === true || consentStatus === null) {
-        // Load authenticated sessions from API
+        // Load authenticated sessions from API with force_refresh to bypass cache on initial load
         console.log("Loading authenticated sessions from API (consentStatus:", consentStatus, ")");
         try {
-          const res = await fetch("/api/chat/history/", {
+          const res = await fetch("/api/chat/history/?force_refresh=true", {
             credentials: "same-origin",
           });
 
