@@ -921,113 +921,170 @@ document.addEventListener("DOMContentLoaded", function () {
     try {
       let allSessions = [];
       
-      // Load anonymous sessions from localStorage if in anonymous mode
-      if (consentStatus === false) {
-        allSessions = getAnonymousSessions();
-      }
+      console.log("Loading chat history with consentStatus:", consentStatus);
       
-      // Load authenticated sessions from API
-      if (consentStatus === true || consentStatus === null) {
+      // Load anonymous sessions from localStorage ONLY if in anonymous mode
+      if (consentStatus === false) {
+        console.log("Loading anonymous sessions from localStorage");
+        allSessions = getAnonymousSessions();
+      } else if (consentStatus === true || consentStatus === null) {
+        // For authenticated users or when consent status is unknown, load from API only
+        console.log("Loading authenticated sessions from API (consentStatus:", consentStatus, ")");
         try {
           const res = await fetch("/api/chat/history/", {
             credentials: "same-origin",
           });
+          
+          console.log("Chat history API status:", res.status, "ok:", res.ok);
+          
+          if (!res.ok) {
+            const errorText = await res.text();
+            console.error("API error response:", res.status, errorText);
+            throw new Error(`API returned ${res.status}: ${errorText}`);
+          }
+          
           const data = await res.json();
-          if (res.ok && data.sessions) {
-            allSessions = allSessions.concat(data.sessions);
+          console.log("Chat history API parsed response:", data);
+          
+          if (data && typeof data === 'object') {
+            if (data.error) {
+              console.error("API returned error in response:", data.error);
+            } else if (data.sessions && Array.isArray(data.sessions)) {
+              console.log("Found authenticated sessions:", data.sessions.length);
+              allSessions = data.sessions;
+            } else {
+              console.warn("API response missing sessions array:", data);
+            }
+          } else {
+            console.error("API returned non-object data:", data);
           }
         } catch (err) {
           console.error("Error loading authenticated chat history:", err);
+          throw err;  // Re-throw to trigger outer catch
         }
       }
       
+      console.log("Total sessions to render:", allSessions.length);
       renderChatHistory(allSessions);
     } catch (err) {
-      console.error("Error loading chat history:", err);
-      chatSessionsList.innerHTML = '<p style="color: #718096; text-align: center; padding: 2rem;">Failed to load chat history</p>';
+      console.error("Error loading chat history:", err, err.stack);
+      if (chatSessionsList) {
+        chatSessionsList.innerHTML = '<p style="color: #718096; text-align: center; padding: 2rem;">Failed to load chat history</p>';
+      }
     }
   }
 
   // Render chat history
   function renderChatHistory(sessions) {
-    if (!sessions || sessions.length === 0) {
-      chatSessionsList.innerHTML = '<p style="color: #718096; text-align: center; padding: 2rem;">No chat history yet</p>';
-      return;
-    }
-
-    // Filter out sessions with invalid dates
-    const validSessions = sessions.filter(session => session.updated_at);
-    
-    if (validSessions.length === 0) {
-      chatSessionsList.innerHTML = '<p style="color: #718096; text-align: center; padding: 2rem;">No chat history yet</p>';
-      return;
-    }
-
-    // Process sessions to compute message_count and preview if missing (for anonymous sessions)
-    const processedSessions = validSessions.map(session => {
-      const processed = { ...session };
-      
-      // For anonymous sessions, compute message_count and preview from messages array
-      if (session.id && session.id.startsWith('anon_')) {
-        processed.message_count = session.messages ? session.messages.length : 0;
-        if (session.messages && session.messages.length > 0) {
-          const lastMessage = session.messages[session.messages.length - 1];
-          processed.preview = lastMessage.text.substring(0, 80) + (lastMessage.text.length > 80 ? '...' : '');
-        } else {
-          processed.preview = 'No messages yet';
-        }
+    try {
+      if (!chatSessionsList) {
+        console.error("chatSessionsList element not found");
+        return;
       }
-      
-      return processed;
-    });
 
-    // Sort by updated_at descending (most recent first)
-    processedSessions.sort((a, b) => {
-      const dateA = new Date(a.updated_at);
-      const dateB = new Date(b.updated_at);
-      return dateB - dateA;
-    });
+      console.log("renderChatHistory called with sessions:", sessions, "type:", typeof sessions);
 
-    chatSessionsList.innerHTML = processedSessions
-      .map(
-        (session) => `
-            <div class="chat-session ${session.is_current ? "active" : ""}" data-session-id="${session.id}">
-                <div class="session-header">
-                    <div class="session-title">${session.title || "Chat Session"}</div>
-                    <button class="session-delete-btn" data-session-id="${session.id}" title="Delete chat">
-                        🗑️
-                    </button>
-                </div>
-                <div class="session-preview">${session.preview || "No messages yet"}</div>
-                <div class="session-meta">
-                    <span>${session.message_count || 0} messages</span>
-                    <span>${formatDate(session.updated_at)}</span>
-                </div>
-            </div>
-        `
-      )
-      .join("");
+      if (!sessions || !Array.isArray(sessions)) {
+        console.warn("sessions is not an array:", sessions);
+        chatSessionsList.innerHTML = '<p style="color: #718096; text-align: center; padding: 2rem;">No chat history yet</p>';
+        return;
+      }
 
-    // Add click handlers for session selection
-    document.querySelectorAll(".chat-session").forEach((sessionEl) => {
-      sessionEl.addEventListener("click", function (e) {
-        // Don't load session if clicking delete button
-        if (e.target.classList.contains("session-delete-btn")) {
-          return;
+      if (sessions.length === 0) {
+        chatSessionsList.innerHTML = '<p style="color: #718096; text-align: center; padding: 2rem;">No chat history yet</p>';
+        return;
+      }
+
+      // Filter out sessions with invalid dates
+      const validSessions = sessions.filter(session => {
+        if (!session.updated_at) {
+          console.warn("Skipping session with no updated_at:", session);
+          return false;
         }
-        const sessionId = this.dataset.sessionId;
-        loadChatSession(sessionId);
+        return true;
       });
-    });
+      
+      if (validSessions.length === 0) {
+        chatSessionsList.innerHTML = '<p style="color: #718096; text-align: center; padding: 2rem;">No chat history yet</p>';
+        return;
+      }
 
-    // Add click handlers for delete buttons
-    document.querySelectorAll(".session-delete-btn").forEach((deleteBtn) => {
-      deleteBtn.addEventListener("click", function (e) {
-        e.stopPropagation(); // Prevent session loading
-        const sessionId = this.dataset.sessionId;
-        deleteChatSession(sessionId);
+      // Process sessions to compute message_count and preview if missing (for anonymous sessions)
+      const processedSessions = validSessions.map(session => {
+        const processed = { ...session };
+        
+        // Convert ID to string for consistent checking
+        const sessionIdStr = String(session.id);
+        
+        // For anonymous sessions, compute message_count and preview from messages array
+        if (sessionIdStr && sessionIdStr.startsWith('anon_')) {
+          processed.message_count = session.messages ? session.messages.length : 0;
+          if (session.messages && session.messages.length > 0) {
+            const lastMessage = session.messages[session.messages.length - 1];
+            processed.preview = lastMessage.text.substring(0, 80) + (lastMessage.text.length > 80 ? '...' : '');
+          } else {
+            processed.preview = 'No messages yet';
+          }
+        }
+        
+        return processed;
       });
-    });
+
+      // Sort by updated_at descending (most recent first)
+      processedSessions.sort((a, b) => {
+        const dateA = new Date(a.updated_at);
+        const dateB = new Date(b.updated_at);
+        return dateB - dateA;
+      });
+
+      const html = processedSessions
+        .map(
+          (session) => `
+              <div class="chat-session ${session.is_current ? "active" : ""}" data-session-id="${session.id}">
+                  <div class="session-header">
+                      <div class="session-title">${session.title || "Chat Session"}</div>
+                      <button class="session-delete-btn" data-session-id="${session.id}" title="Delete chat">
+                          🗑️
+                      </button>
+                  </div>
+                  <div class="session-preview">${session.preview || "No messages yet"}</div>
+                  <div class="session-meta">
+                      <span>${session.message_count || 0} messages</span>
+                      <span>${formatDate(session.updated_at)}</span>
+                  </div>
+              </div>
+          `
+        )
+        .join("");
+
+      chatSessionsList.innerHTML = html;
+
+      // Add click handlers for session selection
+      document.querySelectorAll(".chat-session").forEach((sessionEl) => {
+        sessionEl.addEventListener("click", function (e) {
+          // Don't load session if clicking delete button
+          if (e.target.classList.contains("session-delete-btn")) {
+            return;
+          }
+          const sessionId = this.dataset.sessionId;
+          loadChatSession(sessionId);
+        });
+      });
+
+      // Add click handlers for delete buttons
+      document.querySelectorAll(".session-delete-btn").forEach((deleteBtn) => {
+        deleteBtn.addEventListener("click", function (e) {
+          e.stopPropagation(); // Prevent session loading
+          const sessionId = this.dataset.sessionId;
+          deleteChatSession(sessionId);
+        });
+      });
+    } catch (err) {
+      console.error("Error rendering chat history:", err, err.stack);
+      if (chatSessionsList) {
+        chatSessionsList.innerHTML = '<p style="color: #718096; text-align: center; padding: 2rem;">No chat history yet</p>';
+      }
+    }
   }
 
   // Delete chat session

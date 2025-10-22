@@ -587,34 +587,51 @@ def api_chat_sessions(request):
             sessions = ChatSession.objects.filter(
                 anon_id=anon_id).order_by('-updated_at')
 
-        current_session = _get_or_create_session(request)
+        try:
+            current_session = _get_or_create_session(request)
+            current_session_id = current_session.id if current_session else None
+        except Exception as e:
+            audit_logger.error(f"Error getting current session in api_chat_sessions: {e}")
+            current_session_id = None
 
         session_list = []
         for session in sessions:
-            # Get first user message for preview
-            first_message = session.messages.filter(sender='user').first()
-            preview = first_message.plaintext[:
-                                              100] if first_message else "No messages yet"
+            try:
+                # Get first user message for preview
+                first_message = session.messages.filter(sender='user').first()
+                
+                if first_message:
+                    try:
+                        plaintext = first_message.plaintext
+                    except Exception as e:
+                        plaintext = first_message.text[:100]  # Fallback to encrypted text
+                        audit_logger.warning(f"Error decrypting message {first_message.id}: {e}")
+                    
+                    preview = plaintext[:100]
+                    title = plaintext[:50] + "..." if len(plaintext) > 50 else plaintext
+                else:
+                    preview = "No messages yet"
+                    title = "New Chat"
 
-            # Generate title from first message or use default
-            title = first_message.plaintext[:50] + "..." if first_message and len(
-                first_message.plaintext) > 50 else (first_message.plaintext if first_message else "New Chat")
-
-            session_list.append({
-                'id': session.id,
-                'title': title,
-                'preview': preview,
-                'message_count': session.messages.count(),
-                'created_at': session.created_at.isoformat(),
-                'updated_at': session.updated_at.isoformat(),
-                'is_current': session.id == current_session.id
-            })
+                session_list.append({
+                    'id': session.id,
+                    'title': title,
+                    'preview': preview,
+                    'message_count': session.messages.count(),
+                    'created_at': session.created_at.isoformat(),
+                    'updated_at': session.updated_at.isoformat(),
+                    'is_current': session.id == current_session_id if current_session_id else False
+                })
+            except Exception as e:
+                audit_logger.error(f"Error processing session {session.id}: {e}")
+                continue
 
         return JsonResponse({
             'sessions': session_list,
-            'current_session_id': current_session.id
+            'current_session_id': current_session_id
         })
     except Exception as e:
+        audit_logger.error(f"Error in api_chat_sessions: {e}", exc_info=True)
         return JsonResponse({'error': str(e)}, status=500)
 
 
