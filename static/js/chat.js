@@ -1670,8 +1670,17 @@ document.addEventListener("DOMContentLoaded", function () {
         return processed;
       });
 
-      // Sort by updated_at descending (most recent first)
+      // Sort by updated_at descending (most recent first), but keep 0-message chats at the top
       processedSessions.sort((a, b) => {
+        // If one has 0 messages and the other doesn't, put 0-message chat first
+        if ((a.message_count === 0 || a.message_count === undefined) && (b.message_count > 0)) {
+          return -1; // a comes first
+        }
+        if ((a.message_count > 0) && (b.message_count === 0 || b.message_count === undefined)) {
+          return 1; // b comes first
+        }
+        
+        // If both have 0 messages or both have messages, sort by date
         const dateA = new Date(a.updated_at);
         const dateB = new Date(b.updated_at);
         return dateB - dateA;
