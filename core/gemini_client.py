@@ -63,7 +63,55 @@ def assess_response_type(user_text: str, emotions: List[Dict[str, float]]) -> st
     """
     Use Gemini to intelligently determine response type, considering RoBERTa emotions.
     Returns response type: immediate_danger, grief, panic, high_distress, or normal
+    
+    STEP 1: Check for explicit crisis keywords first (safety-first approach)
+    STEP 2: Use Gemini for nuanced assessment if not clearly a crisis
     """
+    # ============ STEP 1: EXPLICIT CRISIS KEYWORD CHECK ============
+    # This catches obvious self-harm/suicide mentions BEFORE Gemini
+    # to prevent over-interpretation of user intent
+    
+    user_lower = user_text.lower()
+    
+    # EXPLICIT CRISIS MARKERS - these are unambiguous danger signals
+    explicit_crisis_markers = {
+        "suicide": [
+            "kill myself", "kill myself", "killing myself", "want to die", 
+            "should die", "end my life", "end it all", "end it", "take my life",
+            "suicide", "suicidal", "commit suicide"
+        ],
+        "self_harm": [
+            "cut myself", "cutting myself", "cutting", "self-harm", "self harm",
+            "hurt myself", "hurting myself", "harm myself"
+        ],
+        "methods": [
+            "overdose", "rope", "pills", "jump", "hanging", "wrist"
+        ],
+        "hopelessness_with_intent": [
+            "no point in living", "better off dead", "everyone would be better off if i",
+            "shouldn't be alive", "don't deserve to live"
+        ]
+    }
+    
+    # Check for explicit markers
+    for category, markers in explicit_crisis_markers.items():
+        for marker in markers:
+            if marker in user_lower:
+                logger.warning(f"🚨 EXPLICIT CRISIS MARKER DETECTED ({category}): '{marker}' in message")
+                return "immediate_danger"
+    
+    # ============ STEP 2: EMOTION-BASED CHECK ============
+    # If high sadness + specific loss keywords = GRIEF (not crisis)
+    if emotions and len(emotions) > 0:
+        top_emotion = emotions[0].get('label', '').lower()
+        score = emotions[0].get('score', 0)
+        
+        # Grief detection - specific loss language
+        grief_keywords = ["died", "passed", "funeral", "death", "lost", "lost my", "miss"]
+        if top_emotion == 'sadness' and score > 0.7 and any(kw in user_lower for kw in grief_keywords):
+            logger.info(f"Response type: GRIEF (sadness + loss keywords)")
+            return "grief"
+    
     # Extract emotion context from RoBERTa
     emotion_data = []
     for emotion in emotions[:3]:
@@ -74,74 +122,55 @@ def assess_response_type(user_text: str, emotions: List[Dict[str, float]]) -> st
     
     emotion_summary = ", ".join(emotion_data) if emotion_data else "neutral emotions"
     
-    assessment_prompt = f"""You are a mental health AI expert. Your task is to understand the USER'S TRUE INTENT AND EMOTIONAL STATE, not just surface-level words.
+    # ============ STEP 3: GEMINI ASSESSMENT FOR EDGE CASES ============
+    # Only use Gemini for nuanced assessment if no explicit markers found
+    # This prevents over-interpretation while catching subtle crises
+    
+    assessment_prompt = f"""You are a mental health assessment expert. Your task is to classify the user's emotional state.
 
 Message: "{user_text}"
 
 Emotional indicators (RoBERTa): {emotion_summary}
 
-Analyze these dimensions:
+CLASSIFICATION RULES (strict - only use these):
 
-1. **TRUE INTENT**: What is the user actually trying to communicate?
-   - Are they joking/venting for relief? (even with negative words)
-   - Are they genuinely in crisis with specific plans?
-   - Are they seeking practical help vs. emotional support?
+1. **PANIC**: Physical anxiety symptoms (can't breathe, racing heart, hyperventilating)
+   - Only if they describe physical panic symptoms, NOT just emotional distress
+   - Example: "My heart is racing, I can't breathe"
+   - NOT just: "I'm anxious" or "I'm scared"
 
-2. **TONE & CONTEXT**: How serious is this message?
-   - Casual/humorous tone (even with "I hate", "I'm dying") = likely not crisis
-   - Serious/hopeless tone = escalate
-   - Factual complaint vs. emotional spiral
+2. **GRIEF**: Processing death, loss, or bereavement
+   - Already detected in Step 2 - Gemini confirms if needed
+   - They mention someone/something died or was lost
+   - Expressing sadness about specific loss
 
-3. **SEMANTIC MEANING**: What does this really mean?
-   - "I want to die" (in a joke context) ≠ "I have a plan to end my life"
-   - "I'm overwhelmed" (with work) ≠ "I feel completely hopeless"
-   - Strong language ≠ strong intent
+3. **HIGH_DISTRESS**: Emotional suffering without self-harm intent
+   - Hopelessness BUT no mention of harming themselves
+   - Feeling trapped, overwhelmed, can't cope
+   - Genuine pain that goes beyond daily stress
+   - Example: "Everything feels pointless, I don't know how to continue"
+   - NOT: "I should kill myself" (that's crisis, already caught in Step 1)
 
-4. **COHERENCE CHECK**: Do RoBERTa emotions match message intent?
-   - High anxiety + casual tone = likely stress-masking → NORMAL (for now) or HIGH_DISTRESS if serious content
-   - High sadness + loss mention = GRIEF
-   - High fear + physical symptoms = PANIC
+4. **NORMAL**: Manageable conversation
+   - Everyday stress, complaints, jokes
+   - Seeking practical advice
+   - Venting for relief
+   - Even dark humor if clearly joking
+   - Example: "This week is killing me" (clearly hyperbole)
 
-Now classify based on TRUE INTENT and SEMANTIC MEANING:
-
-**IMMEDIATE_DANGER**: User expresses self-harm or suicide intent (with or without specific plans)
-- Any mention of suicide, self-harm, or ending their life
-- Specific methods: "jump", "pills", "cut", "hurt myself", etc.
-- Statements like: "I'll kill myself", "I want to die", "I should end this", "I'll jump"
-- Hopelessness combined with capability/intent
-- INCLUDE crisis resources even without specific plans - err on side of safety
-
-**GRIEF**: User is processing loss, mourning, or death-related content
-- Mentions death, funeral, loss
-- Expressing sadness about someone/something specific
-- Contextually clear loss situation
-
-**PANIC**: User describes acute physical anxiety or panic attack symptoms
-- Can't breathe, chest pain, hyperventilating
-- Describes panic attack
-- Acute physical distress (not just emotional)
-
-**HIGH_DISTRESS**: User expresses genuine emotional suffering without self-harm mentions
-- Hopelessness/despair but no suicide/self-harm language
-- Feeling trapped or unable to cope
-- Severe emotional pain that goes beyond daily stress
-- NOT expressing intent to harm themselves
-
-**NORMAL**: Regular conversation about manageable concerns
-- Everyday stress, procrastination, complaints
-- Joking/sarcasm even with negative words
-- Seeking practical advice
-- Venting for relief (not crisis)
+DO NOT classify as HIGH_DISTRESS or PANIC if:
+- Any hint of self-harm or suicide (already caught in Step 1)
+- They're joking or using expressions hyperbolically
+- They're handling stress with a coping mechanism
 
 REMEMBER: 
-- If the user mentions suicide, self-harm, or killing themselves = IMMEDIATE_DANGER (SAFETY FIRST)
-- Understand the MEANING, not just the WORDS
-- When in doubt about safety, escalate
+- If there's ANY doubt about self-harm/suicide intent, Step 1 already caught it
+- Your job is to classify everything else accurately
+- Be conservative - when in doubt, classify as HIGH_DISTRESS, not NORMAL
 
-Classify into ONE category:
-IMMEDIATE_DANGER
-GRIEF
+Respond with ONLY the classification word:
 PANIC
+GRIEF
 HIGH_DISTRESS
 NORMAL"""
 
@@ -149,7 +178,7 @@ NORMAL"""
         response = model.generate_content(
             assessment_prompt,
             generation_config={
-                "temperature": 0.1,
+                "temperature": 0.1,  # Low temperature for consistent classification
                 "max_output_tokens": 30
             },
             request_options={"timeout": 10}
@@ -160,22 +189,37 @@ NORMAL"""
             f"Response type assessment: {assessment} | Emotions: {emotion_summary} | Message: {user_text[:50]}...")
 
         # Extract the response type from the response
-        valid_types = ["IMMEDIATE_DANGER", "GRIEF", "PANIC", "HIGH_DISTRESS", "NORMAL"]
+        valid_types = ["PANIC", "GRIEF", "HIGH_DISTRESS", "NORMAL"]
         for resp_type in valid_types:
             if resp_type in assessment:
                 return resp_type.lower()
 
+        # Fallback: If Gemini doesn't classify clearly, use emotions
+        if emotions and len(emotions) > 0:
+            top_emotion = emotions[0].get('label', '').lower()
+            score = emotions[0].get('score', 0)
+            if score > 0.7:
+                if top_emotion == 'fear':
+                    logger.info(f"Fallback to panic based on high fear emotion")
+                    return "panic"
+                elif top_emotion == 'sadness':
+                    logger.info(f"Fallback to high_distress based on high sadness emotion")
+                    return "high_distress"
+        
         return "normal"
 
     except Exception as e:
         logger.error(f"Response type assessment failed: {str(e)}")
         # Fallback: Use RoBERTa emotions to make a safe guess
-        if emotions:
+        if emotions and len(emotions) > 0:
             top_emotion = emotions[0].get('label', '').lower()
             score = emotions[0].get('score', 0)
             if score > 0.6:
-                if top_emotion in ['fear', 'sadness', 'anger']:
-                    logger.info(f"Fallback to high_distress based on {top_emotion}")
+                if top_emotion == 'fear':
+                    logger.info(f"Exception fallback to panic based on {top_emotion}")
+                    return "panic"
+                elif top_emotion in ['sadness', 'anger']:
+                    logger.info(f"Exception fallback to high_distress based on {top_emotion}")
                     return "high_distress"
         return "normal"
 
