@@ -109,21 +109,59 @@ async function decryptMessage(encryptedText) {
 // ANONYMOUS SESSION FUNCTIONS
 // ============================================
 
-// Retrieve anonymous chat sessions from sessionStorage
-function getAnonymousSessions() {
+// Encrypt an entire session object
+async function encryptSession(session) {
+  try {
+    const sessionJSON = JSON.stringify(session);
+    return await encryptMessage(sessionJSON);
+  } catch (err) {
+    console.error("Error encrypting session:", err);
+    return null;
+  }
+}
+
+// Decrypt an entire session object
+async function decryptSession(encryptedSession) {
+  try {
+    const sessionJSON = await decryptMessage(encryptedSession);
+    return JSON.parse(sessionJSON);
+  } catch (err) {
+    console.error("Error decrypting session:", err);
+    return null;
+  }
+}
+
+// Retrieve anonymous chat sessions from sessionStorage (and decrypt them)
+async function getAnonymousSessions() {
   try {
     const stored = sessionStorage.getItem(ANONYMOUS_SESSIONS_KEY);
-    return stored ? JSON.parse(stored) : [];
+    if (!stored) return [];
+    
+    const sessionIds = JSON.parse(stored);
+    // sessionIds is now just an array of encrypted session objects
+    const decryptedSessions = await Promise.all(
+      sessionIds.map(async (encryptedSession) => {
+        return await decryptSession(encryptedSession);
+      })
+    );
+    
+    return decryptedSessions.filter((session) => session !== null);
   } catch (e) {
     console.error("Error reading anonymous sessions from sessionStorage:", e);
     return [];
   }
 }
 
-// Save anonymous chat sessions to sessionStorage
-function saveAnonymousSessions(sessions) {
+// Save anonymous chat sessions to sessionStorage (encrypt them)
+async function saveAnonymousSessions(sessions) {
   try {
-    sessionStorage.setItem(ANONYMOUS_SESSIONS_KEY, JSON.stringify(sessions));
+    const encryptedSessions = await Promise.all(
+      sessions.map(async (session) => {
+        return await encryptSession(session);
+      })
+    );
+    
+    sessionStorage.setItem(ANONYMOUS_SESSIONS_KEY, JSON.stringify(encryptedSessions));
   } catch (e) {
     console.error("Error saving anonymous sessions to sessionStorage:", e);
   }
@@ -140,7 +178,7 @@ function setCurrentAnonymousSessionId(sessionId) {
 }
 
 // Create a new anonymous session with initial metadata
-function createAnonymousSession() {
+async function createAnonymousSession() {
   const sessionId = "anon_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
   const session = {
     id: sessionId,
@@ -150,9 +188,9 @@ function createAnonymousSession() {
     updated_at: new Date().toISOString(),
   };
 
-  const sessions = getAnonymousSessions();
+  const sessions = await getAnonymousSessions();
   sessions.push(session);
-  saveAnonymousSessions(sessions);
+  await saveAnonymousSessions(sessions);
   setCurrentAnonymousSessionId(sessionId);
 
   return sessionId;
@@ -168,7 +206,7 @@ async function addMessageToAnonymousSession(sender, text) {
   // Encrypt the message text before storing
   const encryptedText = await encryptMessage(text);
 
-  const sessions = getAnonymousSessions();
+  const sessions = await getAnonymousSessions();
   const session = sessions.find((s) => s.id === sessionId);
 
   if (session) {
@@ -184,13 +222,13 @@ async function addMessageToAnonymousSession(sender, text) {
       session.title = text.substring(0, 50) + (text.length > 50 ? "..." : "");
     }
 
-    saveAnonymousSessions(sessions);
+    await saveAnonymousSessions(sessions);
   }
 }
 
 // Load all messages from a specific anonymous session
 async function loadAnonymousSessionMessages(sessionId) {
-  const sessions = getAnonymousSessions();
+  const sessions = await getAnonymousSessions();
   const session = sessions.find((s) => s.id === sessionId);
   
   if (!session) return [];
@@ -207,10 +245,10 @@ async function loadAnonymousSessionMessages(sessionId) {
 }
 
 // Remove an anonymous session and its messages from storage
-function deleteAnonymousSession(sessionId) {
-  const sessions = getAnonymousSessions();
+async function deleteAnonymousSession(sessionId) {
+  const sessions = await getAnonymousSessions();
   const filtered = sessions.filter((s) => s.id !== sessionId);
-  saveAnonymousSessions(filtered);
+  await saveAnonymousSessions(filtered);
 
   if (getCurrentAnonymousSessionId() === sessionId) {
     sessionStorage.removeItem(ANONYMOUS_CURRENT_SESSION_KEY);
@@ -565,10 +603,10 @@ document.addEventListener("DOMContentLoaded", function () {
     try {
       if (!sessionId || sessionId.startsWith("anon_")) {
         // Anonymous session
-        deleteAnonymousSession(sessionId);
+        await deleteAnonymousSession(sessionId);
         
         // If this was the last anonymous session, also clear the backend
-        const remainingSessions = getAnonymousSessions();
+        const remainingSessions = await getAnonymousSessions();
         if (remainingSessions.length === 0) {
           try {
             await fetch("/api/clear/anonymous/", {
@@ -1318,7 +1356,7 @@ document.addEventListener("DOMContentLoaded", function () {
               console.log("User chose to START FRESH");
               chatMessages.innerHTML = "";
               clearIntroMessage();
-              createAnonymousSession();
+              await createAnonymousSession();
               // Continue with consent update (will reload once)
               await performConsentUpdate(consent);
               resolve(true);
@@ -1336,7 +1374,7 @@ document.addEventListener("DOMContentLoaded", function () {
         // Clear the chat and create a new anonymous session
         chatMessages.innerHTML = "";
         clearIntroMessage();
-        createAnonymousSession();
+        await createAnonymousSession();
       }
 
       await performConsentUpdate(consent);
@@ -1554,7 +1592,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
         
         // Create a new anonymous session
-        createAnonymousSession();
+        await createAnonymousSession();
 
         // Clear current chat and show intro
         chatMessages.innerHTML = `
@@ -1693,7 +1731,7 @@ document.addEventListener("DOMContentLoaded", function () {
       // Load anonymous sessions from sessionStorage if in anonymous mode
       if (consentStatus === false) {
         console.log("Loading anonymous sessions from sessionStorage");
-        allSessions = getAnonymousSessions();
+        allSessions = await getAnonymousSessions();
       } else if (consentStatus === true || consentStatus === null) {
         // Load authenticated sessions from API with force_refresh to bypass cache on initial load
         console.log("Loading authenticated sessions from API (consentStatus:", consentStatus, ")");
@@ -2197,10 +2235,10 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   // Initialize anonymous session if needed
-  function initializeAnonymousSession() {
+  async function initializeAnonymousSession() {
     const currentSessionId = getCurrentAnonymousSessionId();
     if (!currentSessionId) {
-      createAnonymousSession();
+      await createAnonymousSession();
     }
   }
 
