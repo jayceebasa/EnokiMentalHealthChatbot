@@ -1742,7 +1742,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // Render chat history
-  function renderChatHistory(sessions) {
+  async function renderChatHistory(sessions) {
     try {
       if (!chatSessionsList) {
         console.error("chatSessionsList element not found");
@@ -1777,33 +1777,37 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       // Process sessions to compute message_count and preview if missing (for anonymous sessions)
-      const processedSessions = validSessions.map((session) => {
-        const processed = { ...session };
+      const processedSessions = await Promise.all(
+        validSessions.map(async (session) => {
+          const processed = { ...session };
 
-        // Convert ID to string for consistent checking
-        const sessionIdStr = String(session.id);
+          // Convert ID to string for consistent checking
+          const sessionIdStr = String(session.id);
 
-        // For anonymous sessions, compute message_count and preview from messages array
-        if (sessionIdStr && sessionIdStr.startsWith("anon_")) {
-          const messageCount = session.messages ? session.messages.length : 0;
-          processed.message_count = messageCount;
-          
-          if (messageCount > 0) {
-            // Find the first user message for the preview
-            const firstUserMessage = session.messages.find((m) => m.sender === "user");
-            if (firstUserMessage) {
-              processed.preview = firstUserMessage.text.substring(0, 80) + (firstUserMessage.text.length > 80 ? "..." : "");
-              processed.title = firstUserMessage.text.substring(0, 50) + (firstUserMessage.text.length > 50 ? "..." : "");
+          // For anonymous sessions, compute message_count and preview from messages array
+          if (sessionIdStr && sessionIdStr.startsWith("anon_")) {
+            const messageCount = session.messages ? session.messages.length : 0;
+            processed.message_count = messageCount;
+            
+            if (messageCount > 0) {
+              // Find the first user message for the preview
+              const firstUserMessage = session.messages.find((m) => m.sender === "user");
+              if (firstUserMessage) {
+                // Decrypt the message text for display
+                const decryptedText = await decryptMessage(firstUserMessage.text);
+                processed.preview = decryptedText.substring(0, 80) + (decryptedText.length > 80 ? "..." : "");
+                processed.title = decryptedText.substring(0, 50) + (decryptedText.length > 50 ? "..." : "");
+              } else {
+                processed.preview = "No user messages yet";
+              }
             } else {
-              processed.preview = "No user messages yet";
+              processed.preview = "No messages yet";
             }
-          } else {
-            processed.preview = "No messages yet";
           }
-        }
 
-        return processed;
-      });
+          return processed;
+        })
+      );
 
       // Sort by updated_at descending (most recent first), but keep 0-message chats at the top
       processedSessions.sort((a, b) => {
