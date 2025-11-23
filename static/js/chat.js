@@ -8,6 +8,102 @@ let selectedConsent = null;
 // Anonymous mode sessionStorage keys (cleared when browser closes)
 const ANONYMOUS_SESSIONS_KEY = "anonymousChatSessions";
 const ANONYMOUS_CURRENT_SESSION_KEY = "anonymousCurrentSessionId";
+const SESSION_ENCRYPTION_KEY = "sessionEncryptionKey";
+
+// ============================================
+// ENCRYPTION UTILITIES FOR ANONYMOUS SESSIONS
+// ============================================
+
+// Generate a stable encryption key for this browser session
+async function getSessionEncryptionKey() {
+  let key = sessionStorage.getItem(SESSION_ENCRYPTION_KEY);
+  if (!key) {
+    // Generate a new key for this session
+    const randomBytes = new Uint8Array(32);
+    crypto.getRandomValues(randomBytes);
+    key = Array.from(randomBytes)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    sessionStorage.setItem(SESSION_ENCRYPTION_KEY, key);
+  }
+  return key;
+}
+
+// Encrypt text using AES-GCM with a session-derived key
+async function encryptMessage(text) {
+  try {
+    const key = await getSessionEncryptionKey();
+    const keyBytes = new Uint8Array(
+      key.match(/.{1,2}/g).map((byte) => parseInt(byte, 16))
+    );
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw",
+      keyBytes,
+      { name: "AES-GCM" },
+      false,
+      ["encrypt"]
+    );
+
+    const iv = new Uint8Array(12);
+    crypto.getRandomValues(iv);
+
+    const encoded = new TextEncoder().encode(text);
+    const encrypted = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv },
+      cryptoKey,
+      encoded
+    );
+
+    // Combine IV + encrypted data and encode as base64
+    const combined = new Uint8Array(iv.length + encrypted.byteLength);
+    combined.set(iv);
+    combined.set(new Uint8Array(encrypted), iv.length);
+
+    return btoa(String.fromCharCode(...combined));
+  } catch (err) {
+    console.error("Encryption error:", err);
+    return text; // Fall back to plaintext if encryption fails
+  }
+}
+
+// Decrypt text using AES-GCM with a session-derived key
+async function decryptMessage(encryptedText) {
+  try {
+    if (!encryptedText || encryptedText.length === 0) return "";
+
+    const key = await getSessionEncryptionKey();
+    const keyBytes = new Uint8Array(
+      key.match(/.{1,2}/g).map((byte) => parseInt(byte, 16))
+    );
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw",
+      keyBytes,
+      { name: "AES-GCM" },
+      false,
+      ["decrypt"]
+    );
+
+    const combined = new Uint8Array(
+      atob(encryptedText)
+        .split("")
+        .map((c) => c.charCodeAt(0))
+    );
+
+    const iv = combined.slice(0, 12);
+    const encrypted = combined.slice(12);
+
+    const decrypted = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv },
+      cryptoKey,
+      encrypted
+    );
+
+    return new TextDecoder().decode(decrypted);
+  } catch (err) {
+    console.error("Decryption error:", err);
+    return encryptedText; // Return as-is if decryption fails
+  }
+}
 
 // ============================================
 // ANONYMOUS SESSION FUNCTIONS
@@ -63,11 +159,14 @@ function createAnonymousSession() {
 }
 
 // Add a message to the current anonymous session
-function addMessageToAnonymousSession(sender, text) {
+async function addMessageToAnonymousSession(sender, text) {
   if (consentStatus !== false) return; // Only store if in anonymous mode
 
   const sessionId = getCurrentAnonymousSessionId();
   if (!sessionId) return;
+
+  // Encrypt the message text before storing
+  const encryptedText = await encryptMessage(text);
 
   const sessions = getAnonymousSessions();
   const session = sessions.find((s) => s.id === sessionId);
@@ -75,12 +174,12 @@ function addMessageToAnonymousSession(sender, text) {
   if (session) {
     session.messages.push({
       sender,
-      text,
+      text: encryptedText,
       created_at: new Date().toISOString(),
     });
     session.updated_at = new Date().toISOString();
 
-    // Update title based on first user message
+    // Update title based on first user message (use original text for title)
     if (sender === "user" && session.messages.filter((m) => m.sender === "user").length === 1) {
       session.title = text.substring(0, 50) + (text.length > 50 ? "..." : "");
     }
@@ -90,10 +189,21 @@ function addMessageToAnonymousSession(sender, text) {
 }
 
 // Load all messages from a specific anonymous session
-function loadAnonymousSessionMessages(sessionId) {
+async function loadAnonymousSessionMessages(sessionId) {
   const sessions = getAnonymousSessions();
   const session = sessions.find((s) => s.id === sessionId);
-  return session ? session.messages : [];
+  
+  if (!session) return [];
+  
+  // Decrypt all messages before returning
+  const decryptedMessages = await Promise.all(
+    session.messages.map(async (msg) => ({
+      ...msg,
+      text: await decryptMessage(msg.text),
+    }))
+  );
+  
+  return decryptedMessages;
 }
 
 // Remove an anonymous session and its messages from storage
@@ -754,7 +864,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // Append a message to the chat display
-  function appendMessage({ sender, text, timeStr = null, isExisting = false }) {
+  async function appendMessage({ sender, text, timeStr = null, isExisting = false }) {
     // Clear intro when user sends first message
     if (sender === "user") {
       clearIntroMessage();
@@ -779,7 +889,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Persist message to anonymous session if applicable (but only for new messages, not existing ones)
     if (!isExisting) {
-      addMessageToAnonymousSession(sender, text);
+      await addMessageToAnonymousSession(sender, text);
     }
 
     scrollToBottom();
@@ -864,14 +974,14 @@ document.addEventListener("DOMContentLoaded", function () {
         clearIntroMessage();
 
         // Render anonymous chat history
-        data.anonymous_history.forEach((msg) => {
-          appendMessage({
+        for (const msg of data.anonymous_history) {
+          await appendMessage({
             sender: msg.role === "user" ? "user" : "bot",
             text: msg.text,
             emotions: null,
             timeStr: null, // No timestamps for anonymous messages
           });
-        });
+        }
       }
     } catch (err) {
       if (summaryEl) summaryEl.textContent = `Context error: ${err.message}`;
@@ -895,7 +1005,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
       if (timeSinceLastMessage < RATE_LIMIT_MS) {
         const secondsLeft = Math.ceil((RATE_LIMIT_MS - timeSinceLastMessage) / 1000);
-        appendMessage({
+        await appendMessage({
           sender: "bot",
           text: `⏱️ Please wait ${secondsLeft} more second${secondsLeft > 1 ? "s" : ""} before sending another message.`,
         });
@@ -925,7 +1035,7 @@ document.addEventListener("DOMContentLoaded", function () {
       sendBtn.textContent = "Sending...";
 
       // Add user message
-      appendMessage({ sender: "user", text: payload.message, emotions: null });
+      await appendMessage({ sender: "user", text: payload.message, emotions: null });
 
       // Clear the input immediately
       messageInput.value = "";
@@ -948,7 +1058,7 @@ document.addEventListener("DOMContentLoaded", function () {
       // Handle rate limit from backend
       if (res.status === 429) {
         hideThinkingIndicator();
-        appendMessage({
+        await appendMessage({
           sender: "bot",
           text: `⏱️ ${data.error || "Please wait before sending another message."}`,
         });
@@ -965,7 +1075,7 @@ document.addEventListener("DOMContentLoaded", function () {
       // Hide thinking indicator
       hideThinkingIndicator();
 
-      appendMessage({ sender: "bot", text: data.reply });
+      await appendMessage({ sender: "bot", text: data.reply });
 
       // Update last message time AFTER successful response
       lastMessageTime = Date.now();
@@ -978,7 +1088,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (memoryEl) memoryEl.innerHTML = renderMemory(data.memory);
     } catch (err) {
       hideThinkingIndicator();
-      appendMessage({ sender: "bot", text: `Sorry, I hit an error: ${err.message}` });
+      await appendMessage({ sender: "bot", text: `Sorry, I hit an error: ${err.message}` });
     } finally {
       // Start cooldown timer AFTER AI response (or error)
       startCooldownTimer();
@@ -1778,7 +1888,7 @@ document.addEventListener("DOMContentLoaded", function () {
       // If anonymous session (starts with 'anon_'), load from sessionStorage
       if (sessionId && sessionId.startsWith("anon_")) {
         setCurrentAnonymousSessionId(sessionId);
-        const messages = loadAnonymousSessionMessages(sessionId);
+        const messages = await loadAnonymousSessionMessages(sessionId);
 
         // Clear current chat and load session messages
         chatMessages.innerHTML = "";
@@ -1824,14 +1934,14 @@ document.addEventListener("DOMContentLoaded", function () {
                 </div>
             `;
         } else {
-          messages.forEach((message) => {
-            appendMessage({
+          for (const message of messages) {
+            await appendMessage({
               sender: message.sender,
               text: message.text,
               timeStr: message.created_at ? formatTime(message.created_at) : undefined,
               isExisting: true,  // Flag to indicate these are existing messages, not new ones
             });
-          });
+          }
         }
 
         // Update context
@@ -1919,15 +2029,15 @@ document.addEventListener("DOMContentLoaded", function () {
           </div>
         `;
       } else {
-        data.messages.forEach((message) => {
-          appendMessage({
+        for (const message of data.messages) {
+          await appendMessage({
             sender: message.sender,
             text: message.text,
             emotions: message.emotions,
             timeStr: formatTime(message.created_at),
             isExisting: true,  // These are existing messages from the database
           });
-        });
+        }
       }
 
       // Update context
